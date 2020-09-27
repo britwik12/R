@@ -1,6 +1,6 @@
 ---
 title: "Untitled"
-author: "Vu Hoang"
+author: "Ritwik Bhriguvanshi"
 date: "4/19/2020"
 output:
   word_document: default
