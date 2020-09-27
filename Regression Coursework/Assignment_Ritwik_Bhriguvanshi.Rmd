@@ -28,7 +28,6 @@ head(data)      # Printing the top 5 rows of the data
 
 lm1 <- lm(PricePerSqft ~ bedrooms, data = data); lm1  #Linear model for PricePerSqft by bedrooms
 summary(lm1)
-
 mygraph1 <- ggplot(data, aes(x = bedrooms, y = PricePerSqft)) + 
         geom_point() 
                    
