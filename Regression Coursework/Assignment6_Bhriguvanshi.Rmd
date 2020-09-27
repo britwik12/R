@@ -1,0 +1,295 @@
+---
+title: "Homework6"
+author: "Ritwik Bhriguvanshi"
+date: "4/09/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+
+```{r cars}
+## Install libraries
+
+library(MatchIt)
+library(gridExtra)
+library(dplyr)
+library(ggplot2)
+library(gplots)
+library(corrplot)
+
+## Import the dataset
+
+data <- read.csv("GoodBellyData.csv")
+dim(data)
+head(data)
+str(data)
+```
+
+
+```{r 1a}
+
+## EDA
+par(mfrow=c(1,2))
+boxplot(Units.Sold ~ Sales.Rep,data = data, ylab = "Units Sold", col = "blue")
+boxplot(Units.Sold ~ Endcap,data = data, ylab = "Units Sold", col = "bisque2")
+boxplot(Units.Sold ~ Demo,data = data, ylab = "Units Sold", col = "darkkhaki")
+boxplot(Units.Sold ~ Demo1.3,data = data, ylab = "Units Sold", col = "cyan4")
+boxplot(Units.Sold ~ Demo4.5,data = data, ylab = "Units Sold", col = "darkslategray4")
+boxplot(Units.Sold ~ Natural,data = data, ylab = "Units Sold", col = "lightcoral")
+boxplot(Units.Sold ~ Fitness,data = data, ylab = "Units Sold", col = "orange")
+
+## Check association among the predictor variabes (without Region)
+
+par(mfrow=c(1,1))
+cormatrix <- cor(data[,c(4:12)])
+corrplot(cormatrix)
+
+## First Linear Model
+## Exclude Date, Store and Region
+par(mfrow=c(2,2))
+lrmodel1 <- lm(Units.Sold ~., data = data[,c(4:12)])
+summary(lrmodel1)
+plot(lrmodel1)
+
+## Second Linear Model
+## Include Region, Exclude Date and Store
+## Model to see if region has an effect on Units Sold
+
+par(mfrow=c(2,2))
+lrmodel2 <- lm(Units.Sold ~., data =data[,c(2,4:12)])
+summary(lrmodel2)
+plot(lrmodel2)
+
+```
+Response:
+I developed two models for this question - the first excludes region while the next model takes region into consideration. Since region is a factor, we will have more coefficient to interpret for the second model.
+
+*EDA Analysis*
+Looking at the boxplots, we can for all the binary variables - the presence of sales representative, incorporating a demo in any of the corresponding/previous weeks, and having the Endcap promotion will result in greater amount of units sold.
+
+Interpretation for model 1:
+*Coefficients*
+A unit increase in Average Retail Price will result in a decrease of Units sold by approximately 28.5 units, keeping every other variable as fixed or constant
+The presence of a sales rep will increase the units sold by 77 units, keeping every other variable as fixed or constant.
+The participation of encap promotion by the store will result in an increase in units sold by 305 units,keeping every other variable as fixed or constant.
+If a store had a demo in the corresponding week, units sold will increase by 111 units, keeping every other variable as fixed or constant.
+If a store had a demo 1-3 weeks ago, units sold will increase by 73 units approximately, keeping every other variable as fixed or constant.
+If a store had a demo 4-5 weeks ago, units sold will increase by 67 units approximately, keeping every other variable as fixed or constant.
+
+*R-Square*
+The R-Square for the model is 0.6726% which means that the predictors in the model are able to explain about 67.26% of the variation in the model.
+
+*Model Assumption Validity*
+We can observe violations in normality, constant variance, and linearity. The QQ-plot shows deviations at the both the tails which violates the normality assumption, but it can be ignored because of large sample size. Observing the residual plot, we can see violation of linearity and constant variance, specially at higher values. There's no significant effect of any extreme observation or outliers in the data. 
+
+Interpretation for model 2:
+*Coefficients*
+The coefficients will have a different interpretation than the model above as we have included region (which is a factor). The base of the 'region' variable which comes alphabeticallty first will be included in the intercept of the model, while the other 10 regions will have an interpretation of its own. To further illustrate, the region 'FL' will be interpreted as the intercept in the second model.
+
+One example of coefficient interpretation in this case (for region MA):
+
+Units Sold = (286.8903 + 24.0038) - 32.65 x Average Retail Price + 35.24 x Sales.Rep + 302.78 x EndCap
++ 112.88 x Demo + 73.88 x Demo1.3 + 65.85 x Demo4.5 - 1.38 x Natural - 0.12 x Fitness
+
+*R-Square*
+The R-Square for the model is 0.6817% which means that the predictors in the model are able to explain about 68.17% of the variation in the model.
+
+*Model Assumption Validity*
+More or less the same interpretation stated above for model 1. Same problems are associated with the second model.
+
+*Conclusion*
+We could say that including region in the model as a predictor variable does not significantly imporve the model as the R-square remain same more or less. Additionally, both the plots see violations in assumptions. Including region in the model would be specifically beneficial if we want to focus to region wise effect of EndCap.
+
+```{r 1b}
+
+pp1 <- ggplot(data,aes(Units.Sold)) + geom_histogram(bins = 15) + theme_bw() + labs(x="Units Sold")
+
+mu <- mean(data$Units.Sold)
+std <- sqrt(var(data$Units.Sold))
+Units.Sold_std <- (data$Units.Sold-mu)/std
+
+pp2 <- ggplot(data,aes(Units.Sold_std)) + geom_histogram(bins = 15) + theme_bw() + labs(x="Units Sold Standardized")
+grid.arrange(pp1,pp2, ncol =2)
+
+# Remove Date, Store, Region
+GoodBelly <- data[,-c(1:3)]
+
+# Grouping by Endcap
+# Computing means for control and treatment cases for each covariate
+
+cbind(GoodBelly %>% 
+        group_by(Endcap) %>% 
+        summarize_all(funs(mean(., na.rm = TRUE))), 
+        count = c(table(GoodBelly$Endcap)))
+
+# Testing for significant differences in covariate distributions
+# Extracting P-values
+c(Units.Sold <- with(GoodBelly, t.test(Units.Sold ~ Endcap))$p.value,
+  Average.Retail.Price <- with(GoodBelly, t.test(Average.Retail.Price ~ Endcap))$p.value,
+  Sales.Rep <- with(GoodBelly, t.test(Sales.Rep ~ Endcap))$p.value,
+  Demo <- with(GoodBelly, t.test(Demo ~ Endcap))$p.value,
+  Demo1.3 <- with(GoodBelly, t.test(Demo1.3 ~ Endcap))$p.value,
+  Demo4.5 <- with(GoodBelly, t.test(Demo4.5 ~ Endcap))$p.value,
+  Natural <- with(GoodBelly, t.test(Natural ~ Endcap))$p.value,
+  Fitness <- with(GoodBelly, t.test(Fitness ~ Endcap))$p.value)
+
+```
+
+Response: 
+There are significant differences in covariate distribution for predictor variables - Units Sold, Average Retail Price, Sales Representative, Demo1.3, Natural, and Fitness because the P-value from the t-test is less than 5% which makes it significant.
+
+However, at a 10% cut-off, all the covariate distribution for all predictor variables will be significant, leaving 'Demo4.5'
+
+```{r 1c}
+
+# Look at propensity scores before matching
+pscores_pre_match <- glm(Endcap ~ Average.Retail.Price + Sales.Rep + Demo + Demo1.3 + Demo4.5 + Natural + Fitness, family = binomial(link = "logit"), data = GoodBelly)
+
+GoodBelly$pscores_pre_match <- predict(pscores_pre_match, type = "response")
+
+ggplot(GoodBelly, aes(pscores_pre_match)) + geom_histogram(bins=15) + 
+facet_grid(vars(Endcap)) + theme_bw() + labs(x="Propensity Score")
+
+GoodBelly$pscores_pre_match <- NULL
+
+## Propensity Score Matching (Nearest Neighbor)
+
+mod_match <- matchit(Endcap ~ Average.Retail.Price + Sales.Rep + Demo + Demo1.3 + Demo4.5 + Natural + Fitness, method = "nearest", caliper = 0, ratio = 1, data = GoodBelly)
+
+matched_GoodBelly <- match.data(mod_match)
+head(matched_GoodBelly,3)
+
+# Examine region of common support in the matched data
+
+ggplot(matched_GoodBelly, aes(distance)) + geom_histogram(bins =20) + facet_grid(vars(Endcap)) + theme_bw() + labs(x = "Propensity Score")
+
+# Checking Covariate Balance Post Matching
+
+p1 <- ggplot(matched_GoodBelly,aes(x=distance,y=Units.Sold,color=factor(Endcap))) +
+geom_point() + geom_rug(sides="trbl") + theme(legend.position = "none") +
+labs(x="Propensity Score")
+
+p2 <- ggplot(matched_GoodBelly,aes(x=distance,y=Average.Retail.Price,color=factor(Endcap))) +
+geom_point() + theme(legend.position = "none") + labs(x="Propensity Score")
+
+p3 <- ggplot(matched_GoodBelly,aes(x=distance,y=Sales.Rep,color=factor(Endcap))) +
+geom_point() + theme(legend.position = "none") + labs(x="Propensity Score")
+
+p4 <- ggplot(matched_GoodBelly,aes(x=distance,y=Natural,color=factor(Endcap))) +
+geom_point() + theme(legend.position = "none") + labs(x="Propensity Score")
+
+p5 <- ggplot(matched_GoodBelly,aes(x=distance,y=Fitness,color=factor(Endcap))) +
+geom_point() + theme(legend.position = "none") + labs(x="Propensity Score")
+
+p6 <- ggplot(matched_GoodBelly,aes(x=distance,y=Demo,color=factor(Endcap))) +
+geom_point() +  geom_rug(sides="trbl") + labs(x="Propensity Score")
+
+# Arrange the plots in a grid
+grid.arrange(p1,p2,p3,p4,p5,p6)
+
+# covariate balance comparisons, both before and after matching
+summary(mod_match)$sum.all
+
+# covariate balance in the matched data
+summary(mod_match)$sum.matched 
+summary(mod_match)$nn
+
+## Propensity score region overlap comparisons
+plot(mod_match, type = 'jitter', interactive = FALSE)
+
+## Estimating and Building the ATE models
+
+ATE_lm <- lm(Units.Sold ~ factor(Endcap), data = matched_GoodBelly)
+coef(summary(ATE_lm))
+
+ATE_lm2 <- lm(Units.Sold ~ factor(Endcap) + Average.Retail.Price + Sales.Rep + Demo + Demo1.3 + Demo4.5 + Natural + Fitness,data = matched_GoodBelly)
+coef(summary(ATE_lm2))
+
+```
+
+Response:
+
+There is evidence for satisfactory covariate balancing after performing the matching analysis. The means of both the groups(treated and control) are within 0.1 (10%) for all the variables which is quite reasonable. The distribution match well among each other, but on the contrary only 53 values were matched as reported above. There is existence of large number of unmatched values, 1280 to be precise in the control group. We can try to match more values by tweaking the caliper value or using a different ratio. For a few variables, the mean difference of propensity scores for pre-matching have large differences(for treated and control groups) such as Demo1.3.
+The model in (c) estimates an average of additional 315 units sole per week if the endcap promotion is incorporated. Comparing the result to the model build in (a), we can say that greater increase in units sold can be found here as the first model was expecting an increase of 305 units approximately. Additionally, the newer model build in (c) has fewer significant variables - Average retail price, demo, sales representative, and endcap(1) are significant having a p-value less than 5%.
+
+
+```{r 1d}
+# For Control Cases, we will use Endcap =0
+GoodBelly_control <- subset(GoodBelly,Endcap==0)
+GoodBelly_control$Endcap <- NULL 
+
+## Model for Control Cases
+control_model <- lm(Units.Sold ~. , data = GoodBelly_control)
+summary(control_model)
+
+# For Treated cases, we will use Endcap =1
+GoodBelly_treated <- subset(GoodBelly,Endcap==1)
+GoodBelly_treated$Endcap <- NULL 
+
+## Model for Treated Cases
+treated_model <- lm(Units.Sold ~. , data = GoodBelly_treated)
+summary(treated_model)
+
+## Obtain the predicted values and impute the counterfactuals
+
+impute_control <- predict(control_model,newdata = GoodBelly_treated)
+impute_treated <- predict(treated_model,newdata = GoodBelly_control)
+
+complete_data_treated_cases <- data.frame(cbind(Under_Treatment = GoodBelly_treated$Units.Sold,
+Under_Control = impute_control))
+
+complete_data_control_cases <- data.frame(cbind(Under_Treatment = impute_treated,
+Under_Control = GoodBelly_control$Units.Sold))
+
+complete_data <- rbind(complete_data_treated_cases,complete_data_control_cases)
+head(complete_data,5)
+
+t.test(complete_data$Under_Treatment,complete_data$Under_Control,paired=TRUE)
+
+# fraction of the treatment outcome exceed the control outcome
+mean(complete_data_treated_cases$Under_Treatment > complete_data_treated_cases$Under_Control)
+
+#  fraction of the treatment outcomes exceed the control outcomes
+mean(complete_data_control_cases$Under_Treatment > complete_data_control_cases$Under_Control)
+
+# Compare the observed and imputed values
+complete_data$Treated_Case <- c(rep("Observed",length(impute_control)),
+                           rep("Imputed",length(impute_treated)))
+
+complete_data$Control_Case <- c(rep("Imputed",length(impute_control)),
+                            rep("Observed",length(impute_treated)))
+
+head(complete_data,5)
+
+plot1 <- ggplot(complete_data,aes(x=Treated_Case,y=Under_Treatment)) + geom_boxplot() + labs(title = "Treatment Responses")
+
+plot2 <- ggplot(complete_data,aes(x=Control_Case,y=Under_Control)) + geom_boxplot() + labs(title = "Control Responses")
+
+grid.arrange(plot1,plot2,ncol=2)
+
+# Regression Towards Mean
+# Check if Model yields good results
+
+par(mfrow=c(1,2))
+plot(GoodBelly_treated$Units.Sold,predict(treated_model), ylim=c(0,1000),abline(a=0,b=1))
+
+plot(GoodBelly_control$Units.Sold,predict(control_model), ylim=c(150,500),abline(a=0,b=1))
+
+```
+
+Response:
+Regression approach illustrates that mean difference between the treatment data and control data is significant at the 5% level. With this method, we can expect about 252 units to be sold by incorporating the endcap promotion at the stores. This number is lower than our results found in (a) and (c).
+
+
+##Response to Question 1e
+
+In the models developed in A, C, and D, we can observe that existence of an endcap promotion is considered significant and would result in greater increase for units sold. The t-test performed in (b) portrays significant differences in covariate distributions. The first model build in (a) emphasizes an increase in units sold by approximately 305 units with an introduction of endcap promotion in the stores. As an interest, we see the number of units sold rising from 305 to 315 (approximately) for the model in (c) after matching the propensity scores when an endcap promotion is incorporated. The regression approach in (d) depicts that presence of endcap promotion would result in an increase of about 252 units. Final recommendation to GoodBelly would be to adopt the endcap program as it results in additional units being sold with all the stated models. The best model to chose would be the model developed in (c).
+
+
