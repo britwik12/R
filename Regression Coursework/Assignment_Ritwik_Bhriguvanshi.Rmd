@@ -1,0 +1,198 @@
+---
+title: "Homework_2"
+author: "Ritwik Bhriguvanshi"
+date: "2/4/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+data <- readRDS("br.rds")
+library(ggplot2)
+library(dplyr)
+```
+
+#Question 1a
+Does price per square footage (price/sqft) vary by number of bedrooms (bedrooms) of a house?
+Report an appropriate scatterplot, and fit a simple linear regression model to answer this question. Interpret the output, specifically the coefficient for the effect of bedrooms on price/sqft. Also, report any concern you may have about the model output.
+
+```{r q1a}
+PriceBySqft <- data$price/data$sqft  #Define a new variable for PriceBySqft
+data$PricePerSqft <- PriceBySqft    #New column for Price per Square feet in the dataframe
+dim(data)       # The dimensions will change to 12 columns in the dataframe now
+head(data)      # Printing the top 5 rows of the data
+
+
+lm1 <- lm(PricePerSqft ~ bedrooms, data = data); lm1  #Linear model for PricePerSqft by bedrooms
+summary(lm1)
+
+mygraph1 <- ggplot(data, aes(x = bedrooms, y = PricePerSqft)) + 
+        geom_point() 
+                   
+    mygraph1 + theme_light() +
+    labs (x = "Number of Bedrooms", y = "Price per Square Foot",
+    title = "Relationship between Price per Square Foot and Bedrooms",
+    subtitle = "Scatterplot to see association",
+    caption = "Plot 1 for question 1a: made by RB")
+```
+
+Response: The data contains bedrooms for ranging from 1 bedrooms to 8 bedrooms. For 2, 3, and 4 bedroom apartments, the price per square feet is within the same range and does vary greatly. However, there are a few outliers present for apartments with 4 and 5 bedrooms. For apartments with 1, 6, 7, and 8 bedrooms, we do not have enough data points to make an inference or conclusion about the price per square feet. 
+
+The model produces a R-sqaure of 2.7 x 10^-6 which is negligible. This illustrates that the variable 'bedrooms' is not able explain the variability for Price per square feet in the model. 
+
+The coefficient of -0.05 indicates that for every increase in bedrooms in an apartment will decrease the price per square foot by $0.05. 
+
+The model is not an accurate indication for price per square feet because four bedroom types(1,6,7,8) does not contain enough data points to make inference. Additionally, we would be interested in finding the coefficients for each bedroom separately helping to ascertain the changes in price per square foot meaningfully rather than treating all different types of bedrooms as a single variable. Since, bedrooms are stored as an integer type, the linear model will generate only a single coefficient. 
+
+#Question 1b
+Repeat (a), but unlike in (a), treat the number of bedrooms as a categorical variable (factor). Report an appropriate plot to display this information. Also, fit a simple linear regression model and use the output to describe the association between the two variables. Describe your conserns, if any.
+Note: You will notice that the number of houses with 1, 6, 7, or 8 bedrooms are very few. You may have to drop these, specially the ones with only one house (6,7,8) since the model would not have enough degrees for reliable estimation and inference.
+
+```{r q1b}
+data1 <- data
+data1$bedrooms <- as.factor(data1$bedrooms)
+newdata <- data1[which(data1$bedrooms %in% c(2,3,4,5)),] #Subsetting for selected bedrooms
+
+PriceBySqft <- newdata$price / newdata$sqft
+newdata <- cbind(newdata, PriceBySqft)      #Creating a new column in the dataframe
+lm2 <- lm(PriceBySqft ~ bedrooms, data = newdata);lm2   #Linear Model for PriceBySqft by Bedroom
+summary(lm2)
+
+mygraph2 <- ggplot(newdata, aes(x = bedrooms, y = PriceBySqft, group = bedrooms)) +
+  geom_boxplot() + scale_y_continuous(limit = c(0,250)) +
+  theme_light()
+
+mygraph2 + 
+    labs (x = "Number of Bedrooms", y = "Price per Square Foot",
+    title = "Relationship between Price per Square Foot and Bedrooms",
+    subtitle = "Boxplot to measure association",
+    caption = "Plot 1 for question 1b: made by RB")
+```
+
+Response: After removing bedrooms 1,6,7,8 and developing a linear model, we find the intercepts and coefficients of bedrooms. The linear model uses '2 bedrooms' as a reference point. 
+The p-values for the coefficients are below 5% which indicates that there is significant difference on Price per Square Foot for different bedroom sizes.
+
+The intercept of 73.69 indicates that the average mean price per square foot for 2 bedroom apartment is \$73.69.
+Similarly, for bedroom 3 the price per square feet will increase by approximately \$ 61.94 (decrease by \$ 11.75 relative to bedroom 2). 
+The price per sqaure feet will increase by \$66.29 (decrease by \$7.4 relative to bedroom 2) for 4 bedroom house.
+The price per square feet will increase by \$93.1 (increase by \$19.37 relative to bedroom 2) for a 5 bedroom house. 
+
+However, the model explains only about 7% of the variation in the effect for Price per Square footage with respect to different bedroom sizes.
+
+Referring to the boxplot, the median price per square foot for 2,3,4,and 5 bedroom units varies between \$50 and \$75 approximately. Bedrooms units comprising of 4 and 5 bedrooms have a few right skewed outliers depicting higher price per sqaure foot as compared to the two other bedroom units. Overall, the price per square feet does not vary greatly among the different bedroom units leaving a few outliers.
+
+# Question 1c
+Here you want to understand the effect of square footage (sqft) and number of bedrooms (bedrooms)on price of a house (price). Fit a mulitple linear regression model of price on sqft and bedrooms to answer this question. Report and interpret the estimated coefficients corresponding to sqft and bedrooms, and indicate whether the coefficients are significant. Report any concerns you may have about the results you get from this model.
+
+```{r q1c}
+lm3 <- lm(price ~ sqft + bedrooms, data = data);lm3   # Linear Model
+summary(lm3)
+
+```
+
+Response: 
+'Sqft' has a coefficient of 103.05 which indicates that Price of a house unit will increase by \$103.05 with for each additional square foot, keeping 'bedrooms' as fixed.
+'Bedrooms' has a coefficient of -21379.38 which demonstrates that price of a house will decrease by \$21,379.38 for each additional bedroom, keeping 'sqft' as fixed.
+
+The model interprets the coefficient of bedrooms as a whole rather than breaking it down into different number of bedrooms for a house. 
+
+Both these variables are significant since they vary greatly and have a p-value of less than 5%.
+
+# Question 1d
+Repeat (c), except now you will treat number of bedrooms (bedrooms) as a categorical variable.
+Note: You will notice that the number of houses with 1, 6, 7, or 8 bedrooms are very few. You may have to drop these.
+```{r q1d}
+data1$bedrooms <- as.factor(data1$bedrooms)
+newdata <- data1[which(data1$bedrooms %in% c(2,3,4,5)),] # Subsetting for selected bedrooms
+lm4 <- lm(price ~ sqft + bedrooms, data = newdata);lm4 # Linear Model
+summary(lm4)
+
+```
+
+Response: 
+The price of a house will decrease by \$42,213 for a three bedroom unit keeping 'sqft' as fixed.
+The price of a house will decrease by \$57,338 for a four bedroom unit keeping 'sqft' as fixed.
+The price of a house will increase by \$71,864 for a five bedroom unit keeping 'sqft' as fixed.
+
+All the p-values are significant since they are less than the 5% threshold.
+
+The linear model performs a litle better compared to the model in question 1c as the R-square increases by 4% explaining a little more variation in the model.
+
+Making the number of bedrooms as categorical, we can compare the mean difference for 3,4,5 bedrooms as compared to 2 bedrooms units keeping sqft as fixed. 
+
+#Question 1e
+
+Repeat (d), except now you will include the interaction term in your model. Does effect of sqft on price differ by number of bedrooms? If so, use your model output to characterize effect of sqft on price for each bedrooms level that you include in the model. Describe the differences you see in detail.
+
+```{r q1e}
+lm5 <- lm(price ~ sqft + bedrooms + sqft:bedrooms , data = newdata);lm5
+summary(lm5)
+# OR
+lm6 <- lm(price ~ sqft + bedrooms + sqft*bedrooms, data = newdata);lm6
+summary(lm6)
+
+```
+
+Response: 
+The model is better explained as it can accurately predict the price for the house now:
+
+Price for a 2 bedroom house:
+49428.68 + 33.91 * sqft
+Interpretation: For a 2 bedroom unit, the price of a house will increase by $33.91 for each additional sqaure foot.
+
+Price for a 3 bedroom house:
+49428.68 + 33.91 * sqft + (1 x -44529.82) + 25.35 * sqft
+Interpretation: For a 3 bedroom unit, the price of a house will increase by $59.26 for each additional sqaure foot.
+
+Price for a 4 bedroom house:
+49428.68 + 33.91 * sqft + (1 x -180190) + 76.61 * sqft
+Interpretation: For a 4 bedroom unit, the price of a house will increase by $110.52 for each additional sqaure foot.
+
+Price for a 5 bedroom house:
+49428.68 + 33.91 * sqft + (1 x -541294) + 175.38 * sqft
+Interpretation: For a 5 bedroom unit, the price of a house will increase by $209.29 for each additional sqaure foot.
+
+```{r q2}
+q2 <- read.csv("ca_hospitals_market_share_data_homework2.csv")
+q2 <- q2[which(q2$Year %in% c(2008)),]
+```
+
+#Question 2a
+Develop a mulitple linear regression model to understand association of Market_Share (response) withthe other variables (predictors). Write a paragraph summarizing your findings regarding the association of the predictors with the response, and comment on the significance of each of the predictors in your model. 
+
+```{r q2a}
+q2a <- q2
+q2a <- subset(q2a, select = -c(Year, Hospital_ID))
+
+lm7 <- lm(Market_Share~.,data = q2a);lm7
+summary(lm7)
+
+```
+
+Response: 
+Year and Hospital ID were excluded from the model while all the other variables were incorporated in the linear model. Half of the coefficients are positive while the other half are negative. The four significant coefficient with p-value less than 5 percent are Overall Hospital Rating, Size in Beds, Re-admission rate, and Average Length of days stayed. The two driving coefficients to predict market share are overall hospital rating and mortality rate. While Overall hospital rating has the highest coefficient value, mortality rate has the lowest coefficient value, depicting a change in the these two predictor variables would greatly affect the response variable (market share). 
+The variables in the model explain 82% of the variation in market share. The average value for market share is 0.279. Hence, the RMSE of 0.1 is good for the values which are above the average market share and is bad for lower market share values.
+
+#Question 2b
+Rebuild the model in (a) including the interaction term between Teach and Size_in_Beds. Is the effect of additional bed in a hospital on market share different for teaching non-teaching hospitals? If so, how? Also, investigate if Teach interacts with any of the other predictors in the model (with respect to its effect on market share.
+
+```{r q2b}
+lm8 <- lm(Market_Share ~ Overall_hospital_rating + Level_of_Market_Competition +
+          Size_in_Beds +  Mortality_rate + Readdmission_rate +
+          Average_Length_Of_Stay_days + Cost_Per_Discharge + Teach +
+          Teach*Size_in_Beds, data = q2a); lm8
+
+summary(lm8)     # Teach has an interaction with Size in Beds
+
+lm9 <- lm(Market_Share ~ .*Teach, data = q2a);lm9  # New Model
+summary(lm9)
+```
+Response:
+The variables size in beds and Teach does not interact with each other as the p-value is less than five percent and it is not statistically significant. So, adding an interaction term between size in beds and Teach will not help us to better predict the response variable.
+
+For the new model, we try to create an interaction term of Teach with all the variables. There can be numerous combinations formed by making an interaction between teach and other variables while building a linear model. However, the new model provides a significant interaction of Teach with Average Length of Stay in Days and Cost per Discharge. The interaction of Teach with these two variables would only be significant if we build a linear model incorporating an interaction of Teach with all the variables in the dataframe. The newer model explains the variation little better and has a slightly lower root mean squared error from the previous model.
+
+
