@@ -1,0 +1,497 @@
+---
+title: "Homework-3"
+author: "Ritwik Bhriguvanshi"
+date: "2/19/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+
+```{r q1}
+
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library(readxl)
+
+sheets <- excel_sheets("online_retail_II.xlsx")
+sheet1 <- read_excel("online_retail_II.xlsx", sheet = sheets[1])
+sheet2 <- read_excel("online_retail_II.xlsx", sheet = sheets[2])
+
+data1 <- rbind(sheet1, sheet2)
+str(data1)
+dim(data1)
+
+## Cleaning Date in the Table
+
+f <- '%Y/%m/%d'
+data1$InvoiceDate <- as.Date(data1$InvoiceDate, format = f)
+head(data1)      ## Check if the Date format has been updated
+
+## Removing Duplicate rows
+library(dplyr)
+data1 <- distinct(data1)
+dim(data1)     ## Check new dimension of data
+
+## Remove cancelled Orders
+## Two way:
+data1 <- data1[nchar(data1$Invoice) == 6, ]  ## nchar for Invoice will be 7 for cancelled order
+
+## AND
+data1 <- data1[data1$Quantity > 0,]   ## Quantity should be positive
+
+## Remove StockCode with less than 5 characters
+## These are unusual product items like POST, which we do not want to focus on
+data1 <- data1[nchar(data1$StockCode) >= 5,]
+
+## Changing column name to make to remove space
+colnames(data1)[7] <- 'CustomerID'
+
+
+## Adding Year, Month, and Date Columns in the Dataframe
+
+library(tidyverse)
+library(lubridate)
+data1 = data1 %>% 
+  mutate(InvoiceDate = ymd(InvoiceDate)) %>% 
+  mutate_at(vars(InvoiceDate), funs(year, month, day))
+
+```
+
+```{r q1a}
+TotalSales <- data1$Quantity * data1$Price
+
+## Joining a new column for Sales in the Existing Dataframe
+
+data1 <- cbind(data1, TotalSales)
+
+## Dropping missing values from customer ID
+q1a <- drop_na(data1, "CustomerID")
+dim(data1)      ## Check new dimension of data
+
+library(dplyr)
+
+q1a <- q1a %>%
+  group_by(year, month, CustomerID) %>%
+  summarize(., Count = n(),SumQuantity = sum(Quantity),TotalSpending = sum(TotalSales))
+
+q1a <- q1a %>%
+  group_by(CustomerID) %>%
+  summarize(., AverageSpending = mean(TotalSpending)) %>%
+  arrange(desc(AverageSpending))
+
+## Filtering out top 20 Average Spending
+q1a <- q1a %>%
+top_n(20, AverageSpending)
+
+q1a
+
+## Filtering top 20 customer IDs by putting it back in the original data
+
+q1aNewData <- data1 %>%
+  select(CustomerID,Invoice,year, month, Quantity, TotalSales, Country) %>%
+  filter(., CustomerID %in% c(16446,15098,18102,15749,         
+                              14646,17450,12346,14156,      
+                              16000, 13687,14911,18052,
+                              14096,14028,12415 ,12590 ,      
+                              14088, 12357,13902,18139)) %>%
+  group_by(.,CustomerID) %>%
+  summarize(., Count = n(), TotalQuantity = sum(Quantity), AmountSpent = sum(TotalSales)) %>%
+  arrange(desc(AmountSpent))
+
+```
+
+Response: After cleaning the data and removing the rows which we do not want to include in our analysis, the following customerID were generated with the highest Average Spending per month. After finding these Cutsomer IDs,
+I filtered the original data (stored as data1) with these customer IDs. 
+
+Significant characteristics: Most of these Customer IDs are wholesalers who have an high frequency of occurence. Some of these are regular customers who constantly buy products from this retail store as they have a very high amount of quantity bought and amount spent. Examples of these customer IDS are: **18102**, **14646**, **14156**, **14911**
+
+However, few of the high spending customers have a very low frequency count. For example, CustomerID- **16446** has a frequency count of only 3, but the total amount spent is **168472**, which is the sixth highest. This is the reason why this customer has the highest average monthly sales.
+
+There are also a few customers who buy products in less quantity, but the products are expensive, making them a part of customers with high spendings. An example of this type can be Customer ID - **15098** has bought total quantity of 121, but has a spending of **39916**
+   
+   
+   CustomerID AverageSpending
+                 
+ 1      16446          84236
+ 2      15098          39916
+ 3      18102          25260
+ 4      15749          22267
+ 5      14646          21144
+ 6      17450          17485
+ 7      12346          15511
+ 8      15760          13916
+ 9      14156          13060
+10      14096          13033
+11      12536          12602
+12      16000          12394
+13      13687          11881
+14      14911          11657
+15      12918          10954
+16      18052          10877
+17      14028          10396
+18      12590           9864
+19      12415           9631
+20      14088           9148
+
+```{r q1b}
+## We are using the data1 dataset because we will use the sales for customer IDs with NA
+
+q1b <- data1 %>%
+  select(Invoice, StockCode, Description, Quantity, Invoice, Price, CustomerID, year, month, day,          TotalSales) %>%
+  group_by(.,year, month) %>%
+  summarize(., Count = n(), QuantitySold = sum(Quantity), Sales = sum(TotalSales))
+
+q1b
+
+## Plot to see the monthly change in sales
+library(ggplot2)
+
+MONTHS <- 1:25   ## Create Dummy Variable for 25 months
+
+
+mygraph1 <- ggplot() + geom_line(aes(y = Sales, x = MONTHS, colour = MONTHS), size = 1.5,
+          data = q1b, stat="identity") + geom_smooth(method = lm)
+
+mygraph1 <- mygraph1 +
+            theme_light() +
+            ylim(500000,1500000)+
+            labs(
+            x = "Months",
+            y = "Sales in Sterling",
+            title = "Line Graph to Analyze Variation in Monthly Sales",
+            subtitle = "December 2009 to December 2011",
+            caption = "Plot for question 1b: made by RB")
+
+mygraph1
+
+## Number of Customers by each Month
+
+q1b <- data1 %>%
+  select(Invoice, StockCode, Description, Quantity, Price, CustomerID, year, month, day,TotalSales) %>%
+  group_by(.,year, month) %>%
+  summarize(., Count = n(), QuantitySold = sum(Quantity), Sales = sum(TotalSales), DistinctCustomers = n_distinct(CustomerID))
+
+mygraph2 <- ggplot() + geom_line(aes(y = DistinctCustomers, x = MONTHS, colour = DistinctCustomers), size = 1.5,
+          data = q1b, stat="identity") + geom_smooth(method = lm)
+
+mygraph2 <- mygraph2 +
+            theme_light() +
+            labs(
+            x = "Months",
+            y = "Number of Distinct Customers",
+            title = "Line Graph to Analyze Variation in Customers",
+            subtitle = "December 2009 to December 2011",
+            caption = "Plot for question 1b: made by RB")
+
+mygraph2
+
+## Graph for Quantity Sold
+
+mygraph3 <- ggplot() + geom_line(aes(y = QuantitySold, x = MONTHS, colour =      QuantitySold), size = 1.5,
+          data = q1b, stat="identity") + geom_smooth(method = lm)
+
+mygraph3 <- mygraph3 +
+            theme_light() +
+            labs(
+            x = "Months",
+            y = "Quantity Sold",
+            title = "Line Graph to Analyze Variation in Quantity Sold",
+            subtitle = "December 2009 to December 2011",
+            caption = "Plot for question 1b: made by RB")
+
+mygraph3
+
+```
+Response:
+
+I created a dummy variable to store the data as a spread of 25 months starting from the following dates:
+Month 1 -- December 2009, and goes on to Month 25 -- December 2011
+
+The three graphs show two peaks during the 25 months of data provided. The peaks are during the month of October and November which suggests that customers are trying to stock up to prepare for the Holiday season (Thanksgiving and Christmas Holidays). The sales remain pretty much constant for the rets of the months.
+
+Graph2 depicts number of distinct customers shopping during the entirety of 25 months and Graph3 depicts the total quantity of products being sold over 25 months. We can infer that these two graphs have the pea around the same time. Hence, both the reasons- quanity of products and number of customers attribute to variation in sales.
+
+
+```{r q1c}
+
+products <- data1 %>%
+  group_by(StockCode) %>%
+  summarize(ProductSales = sum(TotalSales))
+
+## Finding 25 customers with the most sales
+Top_Products <- head(products[order(products$ProductSales, decreasing = T),],25)
+
+## Subsetting
+
+q1c <- data1 %>%
+  filter(StockCode %in% Top_Products$StockCode) %>%
+  group_by(StockCode, year, month) %>%
+  summarize(ProductSales = sum(TotalSales))
+
+## Adding a column to help form a for looop
+q1c$Sequence <- seq(1, nrow(q1c))
+
+## LOOP to find significant P-values
+
+Pvalues <- c()
+for (i in 1:nrow(q1c)){
+  model <- (lm(ProductSales ~ Sequence, data = q1c[q1c$StockCode == as.character(q1c$StockCode[i]),]))
+  if(nrow(summary(model)$coefficients) == 2) {
+  Pvalues[i] <- (summary(model)$coefficients[2,4])
+  }
+}
+
+(significant <- which(Pvalues <= 0.05))
+(unique(q1c[significant,]$StockCode))     ## Find the significant products with variation
+
+mygraph4 <- q1c[q1c$StockCode == '20685',] %>%
+  ggplot(aes(y = ProductSales, x = MONTHS)) + 
+  geom_line(color = "black") + 
+  geom_point(shape = 21, color = 'gray', fill = "blue", size = 4)+
+  geom_smooth(method = "lm")
+mygraph4
+
+mygraph5 <- q1c[q1c$StockCode == '21843',] %>%
+  ggplot(aes(y = ProductSales, x = MONTHS)) + 
+  geom_line(color = "black") + 
+  geom_point(shape = 21, color = 'gray', fill = "blue", size = 4)+
+  geom_smooth(method = "lm")
+mygraph5
+
+```
+
+Response:
+ProductID with variation in sales:
+
+"20685"  "21137"  "21843"  "22197"  "48138"  "79321"  "85123A"
+
+I subsetted the products after narrowing it on total sales. 
+I then found out the product with 25 highest sales.
+After grouping these products on month and year, and finding significant products, there were seven different product IDs with monthly variation in sales. 
+
+Graph4 and Graph5 shows the variation in sales of the first two listed products. 
+
+```{r q1d}
+
+customers <- drop_na(data1, "CustomerID")
+
+customers <- customers %>%
+  group_by(CustomerID) %>%
+  summarize(CustomerSpending = sum(TotalSales))
+
+## Finding 25 customers with the most sales
+Top_Customers <- head(customers[order(customers$CustomerSpending, decreasing = T),],25)
+
+## Subsetting
+
+q1d <- data1 %>%
+  filter(CustomerID %in% Top_Customers$CustomerID) %>%
+  group_by(CustomerID, year, month) %>%
+  summarize(AmtSpend = sum(TotalSales))
+
+## Adding a column to help form a for looop
+q1d$Sequence <- seq(1, nrow(q1d))
+
+## LOOP
+
+Pvalues <- c()
+for (i in 1:nrow(q1d)){
+  model <- lm(AmtSpend ~ Sequence, data = q1d[q1d$CustomerID ==as.character(q1d$CustomerID[i]),])
+  Pvalues[i] <- summary(model)$coefficients[2,4]
+}
+
+summary(Pvalues)
+
+(significant <- which(Pvalues <= 0.05))
+(unique(q1d[significant,]$CustomerID))
+
+library(ggplot2)
+
+mygraph6 <- q1d[q1d$CustomerID == '13694',] %>%
+  ggplot(aes(y = AmtSpend, x = MONTHS)) + 
+  geom_line(color = "black") + 
+  geom_point(shape = 21, color = 'gray', fill = "blue", size = 4)+
+  geom_smooth(method = "lm")
+mygraph6
+
+mygraph7 <- q1d[q1d$CustomerID == '17841',] %>%
+  ggplot(aes(y = AmtSpend, x = MONTHS)) + 
+  geom_line(color = "black") + 
+  geom_point(shape = 21, color = 'gray', fill = 'blue', size = 4)+
+  geom_smooth(method = "lm")
+mygraph7
+
+```
+
+Response:
+CustomerID with variation in sales:
+
+'13694' '17841'
+
+I subsetted the products after narrowing it on total sales. 
+I then found out the product with 25 highest sales.
+After grouping these products on month and year, and finding significant products, there were two different product IDs with monthly variation in sales. 
+
+Graph6 and Graph7 shows the variation in sales of the first two listed products. 
+
+```{r q2}
+r <- read.csv("Credit_homework3.csv",header = TRUE)
+head(r)
+str(r)
+library(ggplot2)
+library(leaps)
+library(GGally)
+library(lmtest)
+library(car)
+```
+
+```{r q2a}
+
+## Relationship of Balance with numerical data
+pairs(r[,c("Balance" ,'Income','Limit', 'Rating', 'Cards', 'Age', 'Education')])
+
+## Relationship of Balance with categorical data
+library(GGally)
+ggpairs(r[,c("Balance" ,'Gender','Student', 'Married', 'Ethnicity')])
+```
+
+Response: From the pair-wise matrix, we can infer that Ratings and Credit limit are two important factors that have an impact on balance and posses positive linear association with balance. The status of being a also has a significant impact on balance. The level of education variable can be used to explain the credit card balance to a certain extent.
+
+For categorical variables- married, gender, and ethnicity does not effect the balance since the median values for all the different types are in the same range.
+
+```{r q2b}
+
+MLR <- lm(Balance ~ Income + Limit + Rating + Cards + Age + Education + Gender + Student + Married + Ethnicity ,data=r)
+summary(MLR)
+
+SResiduals <- rstandard(MLR)   ## Standardized Residuals
+
+par (mfrow=c(3,2))
+plot (MLR,c(1,2,3,4,5,6))
+
+plot.ts(SResiduals,xlab="Obs")
+
+
+crPlots(MLR,main="",cex=0.5, id.n = 3, id.cex = 0.8, col.lines=c("red","green"))
+
+avPlots(MLR,cex=0.5,id.n = 3,id.cex = 0.8,main="", layout =c(3,4))
+
+## Multicollinearity
+
+x <- model.matrix(MLR)[,-1]
+corr_x<-cor(x);round(corr_x,3)
+
+vif(MLR)
+
+## Box - Cox Transformation
+
+b <- summary(powerTransform (cbind(Income,Limit,Rating,Cards,Age,Education, (Balance+0.01))~1, data=r))
+b
+round(b$result,2)
+
+r$Income2 <- r$Income^0.33
+r$Limit2 <- r$Limit^0.69
+r$Rating2 <- r$Rating^0.61
+r$Cards2 <- r$Cards^0.50
+r$Age2 <- r$Age^1
+r$Education2 <- r$Education^1.46
+
+head(r)
+
+```
+
+Response: There is evidence of non-constant variance, as fitted and residuals show non-linear relationship. The errors are not normally distributed (in the qq-plot), as it has long tail. The variable which has non-linear relationship with Balance are Rating and Limit.
+
+There is existence of multi-collinearity as large coefficients are present in the correlation matrix. 
+
+```{r q2c}
+
+## Variable Selection
+
+VS <- regsubsets(Balance ~ Income + Limit + Rating + Cards + Age + Education + Gender + Student + Married + Ethnicity ,data = r)
+
+VSSummary <- summary(VS)
+
+names(summary(VS))
+
+c("BIC" = which.min(VSSummary$bic))
+min(VSSummary$bic)
+
+par(mfrow=c(1,2))
+plot(VSSummary$bic, xlab="Subset Size", ylab="BIC", type='l')
+
+plot(VS, ylab = "BIC")
+coef(VS,4)  ## Income, Limit, Cards, Student are the best predictor variables. 
+
+```
+
+Response: Using the best group of variables for the model and the BIC criterion, we pick the model that incorporates Income, Limit, Cards, and Student Status. As long as the BIC and complexity is same, the method of subset selection is appropriate
+
+```{r q2d}
+
+FinalModel <- lm (Balance ~ Income2 + Limit2 + Cards2 + Student , data = r)
+summary(FinalModel)
+
+Residuals <- rstandard(FinalModel)      ## Standardized Residuals
+par(mfrow=c(3,2))
+plot(FinalModel,c(1,2,3,4,5,6))
+
+## CR Plot for Final Model
+
+crPlots(FinalModel,main="",cex=0.5, id.n = 3, id.cex = 0.8, col.lines=c("red","green"))
+
+avPlots(FinalModel,cex=0.5,id.n = 3,id.cex = 0.8,main="")
+
+## VIF for Final Model
+vif(FinalModel)
+
+## Bootstrapping
+
+set.seed(123)
+Model <- lm(Balance ~ Income2 + Limit2 + Cards2 + Student, data= r) # Best predictors
+
+
+Residuals <- residuals(Model) # Residuals from observed data
+Predicted <- fitted(Model) # Predicted values from observed data
+
+nb <- 4000 # Number of Bootstrapping samples
+coefmat <- matrix(0,nb,5) 
+
+```
+
+Response: Violation exists in the model even after transformation of variables.
+Some of the violations are: normality and constant variance are not existant. The VIF of coefficients still indicate that they are tolerable and stable, but is still not appropriate.
+
+```{r q2e}
+set.seed(533)
+coefmat <- matrix(0,nb,5)
+for(i in 1:nb) # Repeat the process with a loop
+{
+boot_y <- Predicted + sample(Residuals, rep=TRUE) # generated predicted value
+bMod <- update(Model, boot_y ~ .) # fitting model with bootstrap data
+coefmat[i,] <- coef(bMod) # Store estimates through a loop
+}
+colnames(coefmat) <- c("Intercept","Income2","Limit2","Cards2","Student")
+coefmat <- data.frame(coefmat)
+cbind(t(apply(coefmat,2,function(x) quantile(x,c(0.025,0.975)))),confint(Model))
+```
+
+Response: 
+
+From the bootstrap estimation of confidence interval.
+
+95% confidence that effect of 1 unit change income2 will be  have an effect lying in the interval (-292.18,-243.30) on Balance2.
+
+95% confidence that effect of 1 unit change Limit2 will be  have an effect lying in the interval (4.67,5.01) on Balance2.
+
+95% confidence that effect of 1 unit change cards2 will be  have an effect lying in the interval (44.54,110.89) on Balance2.
+
+95% confidence that effect of 1 unit change student2 will be  have an effect lying in the interval (378.00,466.69) on Balance2.
