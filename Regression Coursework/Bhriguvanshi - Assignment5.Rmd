@@ -1,0 +1,384 @@
+---
+title: "Homework5"
+author: "Ritwik Bhriguvanshi"
+date: "3/31/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r q1}
+
+## Loading in the dataset
+
+data <- read.csv("nba_merged_subset.csv", header = TRUE)
+dim(data)
+
+## Convert the dataset into a table to check the number of entries
+player_names <- table(data$Name)
+
+## Choose players whose name appears only ONCE
+player_names_ones <- names(player_names)[(player_names==1)==TRUE]
+
+## Subset the selected players back into the original datset
+data <- data[which(data$Name %in% player_names_ones),]
+
+## Number of missing values in the dataset
+sum(is.na(data))   
+
+## Column names in which missing values exists
+colnames(data)[colSums(is.na(data)) > 0]  ## Column "ThreeP." consists missing values
+
+## Rows and Column indices of Missing Values
+which(is.na(data), arr.ind=TRUE)
+
+## Impute Missing Values with Median
+data$ThreeP.[which(is.na(data$ThreeP.))] <- median(data$ThreeP., na.rm = T)
+
+## Random Sampling data and splitting data into train and test after using Set Seed
+set.seed(540)
+index <- sample(1:nrow(data),0.7*nrow(data),replace = FALSE)
+
+train <- data[index,]
+dim(train)
+test <- data[-index,]
+dim(test)
+
+```
+
+```{r q1a(i)}
+
+## Basic Visualization Plots with all predictor variables
+## Correlation Matrix
+library(corrplot)
+library(gplots)
+
+cormatrix <- cor(train[,-c(1,21,22)])  ## Exclude- name, year drafted and y-variable
+corrplot(cormatrix)
+
+## HeatMap is also a good visualization tool here
+heatmap.2(cor(train[,-c(1,21,22)]), density.info = "none")
+
+par(mfrow=c(2,3))
+
+boxplot (GamesPlayed ~ y,data = data, ylab = "GamesPlayed", col = "blue")
+boxplot(MIN ~ y,data = data, ylab = "MIN", col = "yellow")
+boxplot(PTS ~ y,data = data, ylab = "PTS", col = "gray")
+boxplot(FGM ~ y,data = data, ylab = "FGM", col = "bisque2")
+boxplot(FGA ~ y,data = data, ylab = "FGA", col = "black")
+boxplot(ThreePM ~ y,data = data, ylab = "ThreePM", col = "darkslategray4")
+boxplot(FTM ~ y,data = data, ylab = "FTM", col = "lightcoral")
+boxplot(FTA ~ y,data = data, ylab = "FTA", col = "red")
+boxplot(REB ~ y,data = data, ylab = "REB", col = "pink")
+boxplot(AST ~ y,data = data, ylab = "AST", col = "orange")
+boxplot(STL ~ y,data = data, ylab = "STL", col = "purple")
+boxplot(BLK ~ y,data = data, ylab = "BLK", col = "darkkhaki")
+boxplot(TOV ~ y,data = data, ylab = "TOV", col = "cyan4")
+
+```
+
+Response:
+
+Observing the corrplot and heatmap, we find that great number of predictor variables have 
+high correlation between themselves. We can observe that MIN, PTS, FGM, FGA have dark blue 
+cicrles when compared with each other depicting high correlation. It does not come as a surpise
+as these variables would be essential for players spanning their career over 5 years. 
+We can confirm your understanding by plotting boxplot of the response variable with each of
+the predictor variable separately. The boxplots will depict a higher spread of value for 'y'
+variables coded as 1(career span is greater than 5 years) as compared to players playing 
+for less than 5 years. We can infer from the boxplots that on an average, rookies who played more 
+games in their rookie year are more likely to play 5 or more years in the league. Similar positive trendscan be seen for average minutes played, points scored per game, average field goals made, average fieldgoals attempted, average three points made average free throws made, average free throws made, average rebounds, average assists, average steals, average blocks, and average turnovers.
+
+```{r q1a(ii)}
+
+library(alr3)
+glm.model <- glm(factor(y) ~., data = train[,-c(1,22)], family = "binomial")
+summary(glm.model)
+
+## For Model Diagnostics
+attach(train)
+par(mfrow=c(2,3))
+mmp(glm.model,GamesPlayed);
+mmp(glm.model,MIN);
+mmp(glm.model,FT.);
+mmp(glm.model,AST);
+mmp(glm.model,TOV); 
+mmp(glm.model,glm.model$fitted.values);
+detach(train)
+
+```
+
+Response:
+
+Significant predictors from the model are **'GamesPlayed'**, **'MIN'**, **'FT.'**, **'AST'**, and **'TOV'** for a rookie to have a career span greater than 5 years. For these significant predictor variables, the linear systematic component is adequate as reported and depicted in the marginal model plots for these variables having very small p-values (for 'MIN' and 'FT', it is a little above 5% threshold)
+For 'FT.' there is a little deviation but nothing major, hence the plots show sufficient evidence of true validity.
+
+```{r q1a(iii)}
+
+library(ROCR)
+
+pred <- predict(glm.model, newdata = test[,-c(1,22)], type = "response")
+pred.glm <- prediction(pred,test$y)
+performance.glm <- performance(pred.glm, measure = "tpr", x.measure = "fpr")
+
+par(mfrow=c(1,1))
+plot(performance.glm,main = "glm")
+
+(misclassification.rate <- mean(round(pred)!= test$y))
+
+## AUC of the model
+
+auc.glmnet <- performance(pred.glm, measure = "auc") # compute the auc
+auc.glmnet@y.values[[1]] # extract auc of the model
+
+```
+
+
+```{r q1a(iv)}
+
+## By defualt, R reports the coefficients and p-values from the Wald's test
+## However we build another model here
+
+model <- glm(factor(y) ~ .,data = train[,-c(1,22)], family = "binomial")
+(summary(model))
+
+```
+
+Response:
+
+As reported earlier, the significant variables are 'GamesPlayed', 'MIN', 'FT.', 'AST' and 'TOV' for 5 year longevity of a rookie in the league by Wald's test.
+
+```{r q1a(v)}
+
+coef(summary(model))
+confint(model)
+
+## Coefficient estimates along with its confidence interval
+(estimates <- (cbind(Estimate = coef(model), confint(model))))
+
+## Exponentiating five significant coefficients from the model
+
+## Exponentiating the coefficient for GamesPlayed 
+(exp(estimates[2,1]))
+
+## Exponentiating the coefficient for MIN
+(exp(estimates[3,1]))
+
+## Exponentiating the coefficient for FT.
+(exp(estimates[13,1]))
+
+## Exponentiating the coefficient for AST
+(exp(estimates[17,1]))
+
+## Exponentiating the coefficient for TOV
+(exp(estimates[20,1]))
+
+```
+
+Response:
+
+**GamesPlayed** and **Assist** are the two most important significant predictors estimated by thhe model.
+
+Keeping all rookie statistics constant, every additional game played is associated with a 3.8196%
+increase in the odds of the rookie’s 5 or more years longevity in the league.
+
+Similarly, keeping all other rookie statistics constant, every additional assist per game is associated with a 76.5044% increase in the odds of the rookie’s 5 or more years longevity in the league.
+
+```{r 1b(i)}
+
+library(glmnet)
+library(ROCR)
+
+modelCLASS <- cv.glmnet(x=as.matrix(train[,-c(1,21,22)]),
+                           y=as.vector(train$y),
+                           family = "binomial",
+                           alpha = 1,
+                           type.measure = "class")
+
+modelAUC <- cv.glmnet(x=as.matrix(train[,-c(1,21,22)]),
+                           y=as.vector(train$y),
+                           family = "binomial",
+                           alpha = 1, 
+                           type.measure = "auc")
+
+# Predicted Values
+
+pred_model_CLASS_MIN <- predict(modelCLASS, 
+                            newx = as.matrix(test[,-c(1,21,22)]),
+                            s = "lambda.min", 
+                            type = "response")
+head(pred_model_CLASS_MIN)
+
+pred_model_CLASS_1SE <- predict(modelCLASS, 
+                            newx = as.matrix(test[,-c(1,21,22)]),
+                            s = "lambda.1se", 
+                            type = "response")
+head(pred_model_CLASS_1SE)
+
+pred_model_AUC_MIN <- predict(modelAUC, 
+                            newx = as.matrix(test[,-c(1,21,22)]),
+                            s = "lambda.min", 
+                            type = "response")
+head(pred_model_AUC_MIN)
+
+pred_model_AUC_1SE <- predict(modelAUC, 
+                            newx = as.matrix(test[,-c(1,21,22)]),
+                            s = "lambda.1se", 
+                            type = "response")
+head(pred_model_AUC_1SE)
+
+## ROC CURVES
+
+# Prediction
+pr.model_CLASS_MIN <- prediction(pred_model_CLASS_MIN,test$y)
+pr.model_CLASS_1SE <- prediction(pred_model_CLASS_1SE,test$y)
+pr.model_AUC_MIN <- prediction(pred_model_AUC_MIN,test$y)
+pr.model_AUC_1SE <- prediction(pred_model_AUC_1SE,test$y)
+
+# Performance
+prf.model_CLASS_MIN <- performance(pr.model_CLASS_MIN, measure ="tpr", x.measure ="fpr")
+prf.model_CLASS_1SE <- performance(pr.model_CLASS_1SE, measure ="tpr", x.measure ="fpr")
+prf.model_AUC_MIN <- performance(pr.model_AUC_MIN, measure ="tpr", x.measure ="fpr")
+prf.model_AUC_1SE <- performance(pr.model_AUC_1SE, measure ="tpr", x.measure ="fpr")
+
+par(mfrow=c(1,2))
+plot(prf.model_CLASS_MIN, main = "Measure criteria with MIN Lambda")
+plot(prf.model_AUC_MIN, main = "AUC criteria with MIN Lambda")
+
+## MISSCLASSIFICATION RATE 
+c(MCR_MEASURE_MIN = mean(round(pred_model_CLASS_MIN)!= test$y),
+  MCR_MEASURE_1SE = mean(round(pred_model_CLASS_1SE)!= test$y),
+  MCR_AUC_MIN = mean(round(pred_model_AUC_MIN)!= test$y),
+  MCR_AUC_1SE = mean(round(pred_model_AUC_1SE)!= test$y))
+
+## AUC
+
+AUC_MEASURE_MIN <- performance(pr.model_CLASS_MIN, measure = "auc")
+AUC_MEASURE_1SE <- performance(pr.model_CLASS_1SE, measure = "auc")
+AUC_AUC_MIN <- performance(pr.model_AUC_MIN, measure = "auc")
+AUC_AUC_1SE <- performance(pr.model_AUC_1SE, measure = "auc")
+
+c(AUC_MEASURE_MIN = AUC_MEASURE_MIN@y.values[[1]],
+AUC_MEASURE_1SE = AUC_MEASURE_1SE@y.values[[1]],
+AUC_AUC_MIN = AUC_AUC_MIN@y.values[[1]],
+AUC_AUC_1SE = AUC_AUC_1SE@y.values[[1]])
+
+```
+
+The missclassification rate and AUC are reported by the R output above.
+
+```{r 1b(ii)}
+
+coefficients = cbind(as.matrix(coef(modelCLASS, s="lambda.min"))[-1,],
+                     as.matrix(coef(modelCLASS, s="lambda.1se"))[-1,],
+                     as.matrix(coef(modelAUC, s="lambda.min"))[-1,],
+                     as.matrix(coef(modelAUC, s="lambda.1se"))[-1,])
+
+colnames(coefficients) <- c("LASSO_MEASURE_MIN",
+                            "LASSO_MEASURE_1SE",
+                            "LASSO_AUC_MIN",
+                            "LASSO_AUC_1SE")
+(round(coefficients,4))
+
+
+```
+
+Response:
+
+I have combined the coeffificent output of logistic-lasso regression model with bothe the measure and AUC criterion respective to lambda.min and lambda.1se.
+
+We observe that **GamesPlayed** and **REB** have a non-zero estimated coefficient across all the models. Apart from these two predictors, other coefficients with non-zero estimates are across majority of the models are **MIN**, **PTS**, **FG.**. By majoirty, I mean non-zero coefficients for minimum of three out of four models.
+
+There are other predictors present that have non-zero coefficients, but depends on the model on interest.
+
+The prediction performance measured by the AUC for different models is around the same range, so there's not much distinction in model performance for the four different models listed above enabling to point out one single best model.
+
+```{r 1b(iii)}
+
+par(mfrow=c(1,2))
+plot(modelCLASS)
+plot(modelAUC)
+
+```
+
+```{r 1c(i)}
+
+library(mgcv)
+gam.model <- gam(y ~ s(GamesPlayed) + s(MIN) + s(PTS) + s(FGM) + s(FGA) +
+                 s(FG.) + s(ThreePM) + s(ThreePA) + s(ThreeP.) + s(FTM) +
+                 s(FTA) + s(FT.) + s(OREB) + s(DREB) + s(REB) + s(AST) + 
+                 s(STL) + s(BLK) + s(TOV), data = train, family = "binomial")
+
+summary(gam.model)
+
+```
+
+Response:
+From the GAM model, we observe that significant predictors for the model are **GamesPlayed**, **AST**, and **TOV**. The edf (effective degrees of freedom) reported for 'AST' and 'TOV' is 1, which ascertains that these two variables have linear association with the response variable.
+
+Much like the GLM model in (a), the significant variables are the same as mentioned above. Comparing the GAM model to the regularized logistic model in (b), we can infer that 'GamesPlayed' is a significant predictor variable. 'AST' and 'TOV' are significant variables with two out of the four models stated in part(b), both the models being with minimum value of lambda with class and AUC attributes.
+
+```{r 1c(ii)}
+
+pred_gam.model <- as.vector(predict(gam.model, newdata = test[,-c(1,21,22)], type = "response"))
+
+pr.gam.model <- prediction(pred_gam.model, test$y)
+prf.gam.model <- performance(pr.gam.model, measure = "tpr", x.measure = "fpr")
+
+par(mfrow=c(1,1))
+plot(prf.gam.model,main = "gam")
+
+## Misclassification
+
+(misclassification.rate.gam <- mean(round(pred_gam.model)!=test$y))
+
+## AUC
+
+auc.gam.model <- performance(pr.gam.model, measure = "auc")
+(auc.gam.model <- auc.gam.model@y.values[[1]])
+
+```
+
+Response:
+
+The performance of the GAM model is comparable to the performance of logistic and regularized logistic models developed in earlier parts as the AUC is around the same range for the models.
+
+```{r 1c(iii)}
+
+plot(gam.model, scale = 0, se = 2, shade = TRUE, resid = TRUE, pages = 5, pch = 19, cex = 0.25, shade.col='lightcoral')
+```
+
+Response:
+
+As found in the partial effect plot, our significant predictors are: **GamesPlayed**, **AST**, **TOV** 
+The effect of 'GamesPlayed' on log odds of 5 or more years longetivity of a rookie is very slightly non-linear(confirmed with edf), and positive.
+The effect for 'AST' on the log odds of 5 or more years longetivity of a rookie is linear, which comprehends that increase is 'AST' is associated with a linear increase in log-odds of a five year longetivity of a rookie in the league.
+'TOV' has a downward slope which is understandable, since good rookies with a five year longetivity are expected to have lower 'TOV' as they would not want to lose possession of the ball when in control. We can infer that there is a negative linear association with 'TOV' in this case.
+
+Another interesting observation from the plots is the predictor variable 'FG.' .From the edf, we can observe that it is very non-linear(edf of 6.633) and has low p-value, but it is not present in 5% threshold. The reason behind low p-value for this predictor variable is because a few rookies have extreme value at both the ends, while majority of rookies have consistent values between 35 and 55. However, this predictor is insignificant in our model.
+
+#Question 1d
+
+Response:
+
+To summarize some important observations from the models developed in this homework  are:
+
+- 'GamesPlayed' is a significant predictor of 5 or more years of longetivity in the league for all the models.
+
+- The variables are highly correlated among themselves. For example, if a rookie has a large number of games played, it is obvious that it would be accompanied by high 'MIN' values, thus scoring higher points and demonstrating other better game statistics.
+
+- The model is comparable across all the different models since the predictive performance of 5 year longetivity in the league is around the same range:
+
+Missclassification rate is between: 0.24 and 0.28
+AUC performance is between: 0.77 and 0.8
+
+- The logistic lasso regression model performs the best with missclassification rate of 0.25 and AUC of 0.79.
+
+
