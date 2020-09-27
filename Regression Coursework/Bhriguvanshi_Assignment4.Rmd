@@ -1,0 +1,310 @@
+---
+title: "Homework4"
+author: "Bhriguvanshi"
+date: "02/28/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r q1}
+
+library(glmnet)
+library(leaps)
+library(mgcv)
+library(car)
+
+## Data Loading and Preparation
+
+data <- read.csv("College.csv", header = TRUE)
+dim(data)
+
+# Converting Factor into Integer 
+data$Private <- as.integer(data$Private)
+
+## Using ifelse statement to decode Private schools: 1 for Private, 0 for not being Private
+data$Private <- ifelse(data$Private == 2,1,0)
+
+## Splitting the data into training and testing sets through random sampling
+set.seed(1)
+
+n <- nrow(data)
+train_index <- sample(1:n,floor(0.7*n),replace = FALSE)
+
+train <- data[train_index,]
+dim(train)
+test <- data[-train_index,]
+dim(test)
+
+```
+
+
+```{r q1a}
+
+matrix <- train[,-c(1,3)]   ## Remove School Names before forming the correlation matrix
+
+## Correlation Matrix
+(cormatrix <- cor(matrix))
+
+## Use Corrplot for better Visualization
+library(corrplot)
+
+## Corrplot with Private
+corrplot(cormatrix)
+
+## HeatMap for the Matrix (without Private)
+(heatmap(cormatrix,keep.dendro=TRUE))
+```
+
+Response:
+
+The heatmap reorder variables and observations using a clustering algorithm as it computes the distance between each pair of rows and columns and try to order them by similarity.
+The dark color boxes in the heat map portrays the variables of most interest. As the color fades away, the association between the variables becomes weaker. For example, the there is a strong association between combination of following variables:
+
+**Strong Association:**
+F.Undergrad and Enroll
+Accept and Enroll
+Terminal and PhD
+Top10perc and Top25perc
+F.Undergrad and Accept
+
+As the heat map dies down to light brownish or white color, it depicts that the variables are not strongly correlated or demonstrate very weak association.
+
+
+```{r q1b}
+
+q1b <- train[,-1]
+model <- lm(Apps ~., data = q1b)
+
+## Reporting the summary of the model
+summary(model)
+
+## Coefficients of the model(Rounding off to two decimal places)
+round(summary(model)$coefficients[-1,1],2)
+
+## Variance Inflation Factor (VIF)
+vif(model)
+
+```
+
+Response:
+VIF ranges from 1 and upwards and prints out a numerical value which predicts what percentage the variance or standard error squared is inflated for each coefficient. For example, Books has a VIF of 1.13 which means that variance of coefficients of Books is 13% bigger than what we will expect it to be considering there's no multi-collinearity (no correlation of books with other predictors).
+
+A VIF of Close to **1** means the variable is **not correlated**. Following variables fall in the same class:
+ **Books**, **Personal**
+ 
+A VIF of between **1 to 5** means the variable is **moderately correlated**. Following variables fall in the same class:
+**Private**, **P.Undergrad**, **Outstate**, **Room.Board**, **PhD**, **Terminal**, **S.F.Ratio**, **perc.alumni**, **Expend**, **Grad.Rate**
+
+A VIF of greater than **5** means the variable is **highly correlated**. Following variables fall in the same class:
+**Accept**, **Top10perc**,**Top25perc**, 
+
+If VIF is more than **10**, the prediction is not accurate. We have two variables which has a VIF greater than 10 in the model:
+ **Enroll**,**F.Undergrad**
+
+```{r q1c}
+
+## Four Plots to assess the model
+par(mfrow=c(2,2))
+plot(model)
+
+```
+
+Response:
+
+Due to presence of large sample size, normality assumption can be met even though the QQ-plot has some violations at the end or tails.
+The points shows independece and randomness of error terms.
+The Residuals vs Fitted plot indicated depicts non-constant variance but there's no regular pattern or trend of increased variance.
+At least one high influential leverage plot is observed in the final plot; higher both in the horizontal and vertical axis.
+
+
+```{r q1d}
+
+## Fitting the model on Test Data
+prediction <- predict(model, newdata = test[,-c(1,3)])
+error <- test$Apps - prediction
+(RMSE <- sqrt(mean(error^2)))
+
+```
+
+Response:
+The predicted values on test data will be off by approximately 1123. In context of the problem, on an average, the number of applications will be off by 1123, as estimated by the model when fitted on the test data.
+
+```{r q1e}
+
+## Variable Selection Approach
+VS <- regsubsets(Apps ~., data = train[,-1])
+
+## Summary for Variable Selection
+VS_Summary <- summary(VS)
+names(VS_Summary)
+
+## Minimum number of predictor variables required through BIC
+c("BIC" = which.min(VS_Summary$bic))
+
+## Plot depicting the number of predictors
+plot(VS_Summary$bic, xlab="Subset Size", ylab="BIC", type='l')
+
+## Plot to check the significance of predictors
+plot(VS, ylab = "BIC")
+
+## Extracting the 8 coefficients found from BIC to find their coefficients
+coef(VS,8)
+
+## Linear Model on Train Data
+model <- lm(Apps ~ Private + Accept + Enroll + Top10perc + Top25perc + Outstate + Room.Board + Expend , data = train[,-1])
+
+## Summary of the Linear Model fitted on test data
+summary(model)
+
+## Selected Predictors and their corresponding coefficients
+round(summary(model)$coefficients[-1,1],2)
+
+## Finding Prediction and Fitting the model on Test Data
+prediction <- predict(model,newdata = test[,-c(1,3)])
+error <- test$Apps - prediction
+
+## Root Mean Square Error
+(RMSE <- sqrt(mean(error^2)))
+
+```
+
+Response: Using the BIC criterion and fitting the model on test data, we can estimate that on an average the number of application will be off by approximately 1135.
+
+Using the BIC criterion on training data, we have a residual standard error of 1029 which goes up when fitted on test data.
+         
+The BIC criterion selects the most important predictor variables to fit in the model. When comparing the coefficients of the BIC model to the normal model, the coefficients are relatively in the same range excluding private. The eight variables selected by the BIC model explains the most variation in the model. THe BIC helps to penalize the complexity of the model, where the complexity refers to the number of parameters(essentially predictor variables) in the model.
+
+The original model and the model under BIC criterion when fitted on training data have around the same R-square and RMSE values. However, the RMSE value in the BIC model goes up slightly when we fit the data on test set, comparing it with the initial model in q1(b).
+
+```{r 1f}
+
+## Fitting the model on training data after little data preparation
+YY <- as.numeric(data[,3])
+XX <- as.matrix(data[,-c(1,3)])
+
+X <- XX[train_index,]
+Y <- YY[train_index]
+
+X_test <- XX[-c(train_index),]
+Y_test <- YY[-c(train_index)]
+
+## glmnet with Ridge on Training Data and Cross-Validation
+cvfitr <- cv.glmnet(x = X,y = Y,family = "gaussian", alpha = 0) 
+
+## Plot for Lambda and Mean Sqaure Error
+par(mfrow=c(1,1))
+plot(cvfitr)
+
+r.min <- cvfitr$lambda.min  ## Smallest lambda will give less error
+cvfitr$lambda.1se
+
+betas <- as.matrix(cbind(coef(lm(Y~X)), coef(cvfitr,s="lambda.min"), coef(cvfitr,s="lambda.1se")))
+colnames(betas) <- c("OLS", "Ridge.lambda.min","Ridge.lambda.1se")
+
+## Coefficients of the best Ridge Model
+(betas[-1,])
+(round(betas[-1,2],2))
+
+## Finding Prediction Values and RMSE by fitting on test data
+predictedr <- predict(cvfitr, newx = X_test, s = r.min)
+
+# Root Mean Square Error
+(RMSE <- sqrt(mean((predictedr-Y_test)^2)))
+
+```
+
+Response:
+Using the Ridge Model criterion and fitting the model on test data, we can estimate that on an average the number of applications will be off by approximately 1059.
+     
+The coefficients obtained from the ridge model changes as majority of the coefficients decrease and are condensed from the original model. The coefficients which increase from the original model have a very small or minimal rise. The model uses a shrinkage penalty which is lambda value times the sum of squares of the coefficients. The coefficients which are very large are penalized. As a result, when lamdba value gets larger, the bias does not change but the variance drops. Unlike the BIC criterion, the ridge model uses all the variables and does not drop any of them                      
+
+```{r 1g}
+
+## Fitting the model on training data after little data preparation
+YY <- as.numeric(data[,3])
+XX <- as.matrix(data[,-c(1,3)])
+
+X <- XX[train_index,]
+Y <- YY[train_index]
+
+X_test <- XX[-c(train_index),]
+Y_test <- YY[-c(train_index)]
+
+# glmnet with Lasso on Training Data and Cross-Validation
+cvfitl <- cv.glmnet(x = X, y = Y, family = "gaussian", alpha = 1) 
+
+## Plot for Lambda Value
+par(mfrow=c(1,1))
+plot(cvfitl)
+
+l.min <- cvfitl$lambda.min  ## lambda.min for lasso
+cvfitl$lambda.1se
+
+## Best Model
+betas <- as.matrix(cbind(coef(lm(Y~X)), coef(cvfitl,s="lambda.min"),coef(cvfitl,s="lambda.1se")))
+colnames(betas) <- c("OLS", "Lasso.lambda.min","Lasso.lambda.1se")
+
+## Coefficients of the Model
+(betas[-1,])
+(round(betas[-1,2],2))
+
+## Predicted values for lasso and Root Mean Square Error
+predictedl <- predict(cvfitl, newx = X_test, s = l.min )  
+
+## Root Mean Square Error
+(RMSE <- sqrt(mean((predictedl-Y_test)^2)))
+
+```
+
+Response:
+Using the Lasso Model criterion and fitting the model on test data, we can estimate that on an average the number of applications  will be off by approximately 1120.
+
+The coefficients obtained from the lasso model also are relatively smaller than the original model. The penalty of the coefficients here is the sum of absolute values of the coefficients. The lasso model tries to shirnk the coefficients estimates towards zero. In some cases, it has the effect of setting the variable equal to zero, which also solves the purpose of variable selection as the predictors with zero coefficients will be eliminated. When the lamdba estimate is small, the model is essentially the least squares estimates. However, as the lambda value increases shrinkage occurs which can help to throw out coefficients when it equals to zero. A lot of coefficients in the lasso model above have coefficients which can effectively be taken out or possess a negligible effect in the response variable if included in the model.
+  
+```{r 1h}
+
+gam1 <- gam(log(Apps) ~  Private + s(Accept) + s(Enroll) + s(Top10perc)+ s(Top25perc) + s(F.Undergrad) + s(P.Undergrad) + s(Outstate)+ s(Room.Board) + s(Books) + s(Personal) + s(PhD) + s(Terminal)+ s(S.F.Ratio) + s(perc.alumni) + s(Expend) + s(Grad.Rate), family = "gaussian" ,data = train)
+
+summary(gam1)
+
+## Partial Effect Plots from GAMs
+plot(gam1, scale = 0, se = 2, shade = TRUE, resid = TRUE, pages = 4, pch = 19, cex = 0.25)
+
+## Predictions
+predictions <- predict(gam1, newdata = test[,-c(1,3)])
+(RMSE <- sqrt(mean((predictions-Y_test)^2)))   ## Y_test is defined in the previous models
+
+```
+
+Response:
+The edf column from the model summary shows the linear or non-linear relationship of the predictor variables with the response variable. So for example, variables such as "Top25perc", "F.Undergrad", "P.Undergrad", "Personal", "Room.Board","S.F.Ratio","perc.alumni" have edf value of 1 which depicts that they have linear relationship with the response variable. On the contrary, other variables which have higher edf values demonstrate non-linear relationship with the response variable (Apps).
+
+There is no conclusive evidence that the GAM model is better than the initial model because there's issues with overfitting the data. The partial plot depict the spread of the points for different variables and not all the predictor variables are evenly spread.
+
+For example the variable **accept**, **enroll**, **Top10perc** follow a certain pattern where data values aare clustered towards the left and follow to trend as it moves along the X-axis.
+
+Similary predictor variables - **Top25perc** and **Room.Board** have a good fit as the points are spread out across the line and it does not follow a certain pattern.
+
+Other variables such as **Terminal** or **PhD** have points cluttered vertically which portrays the variant effect of the variable to predict the response variable.
+
+The partial plots helps to estimate the fitting of data points as well the effect of predictor variable to the response variable.
+
+##Response 1i
+
+The RMSE of the different models computed above vary slightly but the numbers are not off by a lot. While BIC does not give the lowest RMSE, I think it is the best model since it tries to remove multi-collinearity among the predictor variables in the models and picks out the 8 best variables which explains approximates the best variation in the data. Additionally, the BIC model is parsimonious and simpler since we have less coefficients to interpret and estimate. From a management's perspective, cosidering the time and money involved in estimating paramters, BIC model should be really efficient. 
+The RMSE for the Ridge model is the lowest but it has a lot more coefficients to interpret.
+
+For accurately predicting the results it is important to split the data into two sets to see and compare the results from both the sets. Additionally, comparing different models (with each pros and cons) can help to make an appropriate decision depending on the situation. 
+
+The variales of interest would be: Private, Accept, Enroll, Top10perc, Top25perc, Outstate, Room.Board, Expend. The model with these variables give a R-square of 93% when tested on the training set; which explains the variation modeled by these variables in order to estimate the number of applications.
+
+
+
+
+
