@@ -213,7 +213,6 @@ ATE_lm2 <- lm(Units.Sold ~ factor(Endcap) + Average.Retail.Price + Sales.Rep + D
 coef(summary(ATE_lm2))
 
 ```
-
 Response:
 
 There is evidence for satisfactory covariate balancing after performing the matching analysis. The means of both the groups(treated and control) are within 0.1 (10%) for all the variables which is quite reasonable. The distribution match well among each other, but on the contrary only 53 values were matched as reported above. There is existence of large number of unmatched values, 1280 to be precise in the control group. We can try to match more values by tweaking the caliper value or using a different ratio. For a few variables, the mean difference of propensity scores for pre-matching have large differences(for treated and control groups) such as Demo1.3.
