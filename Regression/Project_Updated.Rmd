@@ -1,0 +1,653 @@
+---
+title: "Untitled"
+author: "Vu Hoang"
+date: "4/19/2020"
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ggplot2)
+library(MASS)
+library(car)
+library(dplyr)
+library(MatchIt)
+library(glmnet)
+library(broom)
+```
+
+```{r EDA Analysis I}
+## HAC is basically a Binary Variable 
+## 1 if Hospital Acquired Condition has occured, 0 if not 
+FL <- readRDS("FL_data.rds")
+FL$HACs <- as.numeric(FL$HACs)
+FL$HACs <- ifelse(FL$HACs == 1,0,1)
+head(FL$HACs)
+sum(FL$HACs)   ## [1] 72968 -- number of cases with HAC == 1
+
+## No missing values
+sum(is.na(FL$HACs))
+sum(is.na(FL$count_dxnopoa_ns))
+
+## Converting HACs back into factor
+FL$HACs <- as.factor(FL$HACs)
+
+## Heatmap to see relationship between relevant variables
+corrmap <- FL[,c('age','nchronic','ndx','npr','totchg','los','count_dxnopoa_ns','visit','ahour','totalhospital_noofbed','HACs')]
+corrmap$HACs <- as.numeric(as.factor(corrmap$HACs))
+heatmap(cor(corrmap), Rowv = FALSE)
+
+## Correlation between Total Charges and Length of stay
+cor(FL$totchg, FL$los)
+
+```
+
+EDA Analysis I:
+Data preparation is an important aspect before developing a model. As found above, we do not encounter any missing observations in the dataset. The HAC variable is developed from 'count_dxnopa_ns' variable, which looks at the difference in the number of diagnostics at admission and discharge. Since, there are no missing values for the same, we do not encounter any missing values for Hospital Acquired Conditions (HACs). Looking at the given dataset, we find that there 72,968 cases of Hospital Acquired Condition. 
+
+The dataset contains a mix and numeric and factor variables which we try to analyze and understand before incorporating it in the model. Initially, we observe the heatmap with all the 10 numeric variables in the dataset along with HACs, since it is our main variable of interest for the given case study. 
+
+Looking at the heatmap, it does not come across as a surprise that HACs and 'count_dxnopa_ns' are heavily correlated with since the later variable forms the prior variable. Additionally, we see that total charge and length of stay at the hopital show strong association between them. This would be the general assumption as extended stay in hospital will lead to higher costs and vice-versa. 
+
+The other two variables which show strong association here are 'ndx' and 'npr'. While 'ndx' states the number of diagnoses, 'npr' states the number of procedures. It is prevelant that most of treatment diagnosed in hospital will lead to a procedure being performed on the patient. 
+
+Moderate association can be seen between the age of the patient with number of diagnoses (ndx) and 'nchronic' which states an ICD-9 chronic condition, relatable to a chronic disease or illness. 
+
+```{r EDA Analysis II}
+
+## Changing HAC to "Yes" or "No"
+FL$HACs <- ifelse(FL$HACs == 0,"No", "Yes")
+head(FL$HACs)  ## Check
+
+## Initial EDA -- Boxplot Analysis
+
+par(mfrow=c(2,4))
+boxplot (age ~ HACs,data = FL, ylab = "age", col = "blue")
+boxplot (nchronic ~ HACs,data = FL, ylab = "nchronic", col = "yellow")
+boxplot (ndx ~ HACs,data = FL, ylab = "ndx", col = "darkkhaki")
+boxplot (totchg ~ HACs,data = FL, ylab = "totchg", col = "pink")
+boxplot (los ~ HACs,data = FL, xlab = "los", col = "orange",horizontal = T)
+boxplot (visit ~ HACs,data = FL, xlab = "visit", col = "lightcoral", horizontal = T)
+boxplot (ahour ~ HACs,data = FL, ylab = "hour", col = "darkolivegreen1")
+boxplot (totalhospital_noofbed ~ HACs,data = FL, ylab = "Number of Beds", col = "green")
+
+```
+
+EDA Analysis II:
+For maximizing our insights about the given datset and looking at key structures/patterns, we try to see what effect Hospital Acquired Condition has in relation with other variables when separated by its existence i.e,HAC = "No" meaning there's absence of Hospital Acquired Condition and "Yes" stating it is existent. 
+
+There is a certain underlying structure when HCA criteria is existence. We can observe from the above boxplots that Hospital Acquired condition is prevalant in people with higher age. Additionally, number of diagnoses and procedures is higher for existing HAC condition. Similarly, total charge and length of stay in hospital is greater for HAC patients. However, on the contrary we do not find any significance difference in terms of visit and hours of admission when differentiated by HAC.
+
+```{r EDA Analysis III}
+
+## Count of HAC on Heart Failure Patients
+HF <- FL %>%
+filter(., drg %in% c(291:293))%>%
+group_by(., HACs) %>%
+summarize(., 'Heart Failure Patients' = n(), Percentage = n()/146978)
+print(HF)
+
+## Count of AMI on Heart Attack Patients
+AMI <- FL%>%
+filter(., drg %in% c(280:282))%>%
+group_by(., HACs) %>%
+summarize(., 'Heart Attack Patients' = n(), Percentage = n()/51407)
+print(AMI)
+
+## Count of Pneumonia on Heart Attack Patients
+PN <- FL %>%
+filter(., drg %in% c(193:195))%>%
+group_by(., HACs) %>%
+summarize(., 'Pneumonia Patients' = n(), Percentage = n()/148300)
+print(PN)
+
+```
+
+EDA Analysis III:
+For the given dataset, our focus lies on three different types of patients - Heart Failure Patients, Heart Attack Patients, and Pneumonia patients. In the above tables, we are examining the prevelance of Hospital acquired condition for these three different types. Looking at the percentage values, we can say that HAC exists for roughly about 18-24% of the patients in each of its category. 
+The highest number of patients affected through HAC are heart failure patients (33909) while the least affected are heart attack patients (11733). However, when we take sample size into consideration for each of the categories, the percentages of patients provide a better estimation stating that affected patients by HAC are almost within touching distance.
+
+
+b) Assess the covariate distributions
+
+```{r covariate/EDA Analysis IV}
+
+##Based on the definition, HACs is highly correlated with count_dxnopoa_ns, as count_dxnopoa_ns == 0 only if HACs == 0. Moreover, drg and condition also point towards the same thing. As such, we decided to remove drg and keep condition.
+FL2 <- FL
+FL2$teachstatus <- as.numeric((FL2$teachstatus))
+FL2$tcontrol <- as.numeric(as.character(FL2$tcontrol))
+FL2$rural  <- as.numeric(as.character(FL2$rural))
+FL2$pay1 <- as.numeric(as.character(FL2$pay1))
+FL2$condition <- as.numeric((FL2$condition))
+FL2$drg <- NULL #drg and condition are just the same thing
+FL2$atype <- as.numeric(as.character(FL2$atype))
+FL2$aweekend <- as.numeric(as.character(FL2$aweekend))
+FL2$dqtr <- as.numeric(as.character(FL2$dqtr))
+FL2$dshospid <- as.numeric(as.character(FL2$dshospid))
+FL2$female <- as.numeric(as.character(FL2$female))
+FL2$medincstq <- as.numeric(as.character(FL2$medincstq))
+FL2$race <- as.numeric(as.character(FL2$race))
+FL2$year <- as.numeric(as.character(FL2$year))
+FL2$tran_out <- as.numeric(as.character(FL2$tran_out))
+FL2$zipinc_qrtl <- as.numeric(as.character(FL2$zipinc_qrtl))
+FL2$cm_anemdef <- as.numeric(as.character(FL2$cm_anemdef))
+FL2$cm_chf <- as.numeric(as.character(FL2$cm_chf))
+FL2$cm_chrnlung <- as.numeric(as.character(FL2$cm_chrnlung))
+FL2$cm_coag <- as.numeric(as.character(FL2$cm_coag))
+FL2$cm_depress <- as.numeric(as.character(FL2$cm_depress))
+FL2$cm_dm <- as.numeric(as.character(FL2$cm_dm))
+FL2$cm_dmcx <- as.numeric(as.character(FL2$cm_dmcx))
+FL2$cm_htn_c <- as.numeric(as.character(FL2$cm_htn_c))
+FL2$cm_hypothy <- as.numeric(as.character(FL2$cm_hypothy))
+FL2$cm_lytes <- as.numeric(as.character(FL2$cm_lytes))
+FL2$cm_neuro <- as.numeric(as.character(FL2$cm_neuro))
+FL2$cm_obese <- as.numeric(as.character(FL2$cm_obese))
+FL2$cm_perivasc <- as.numeric(as.character(FL2$cm_perivasc))
+FL2$cm_renlfail <- as.numeric(as.character(FL2$cm_renlfail))
+FL2$read <- as.numeric((FL2$read))
+cbind(FL2 %>% group_by(HACs) %>% summarise_all(funs(mean(., na.rm = TRUE))), count = c(table(FL2$HACs)))
+
+```
+
+EDA Analysis IV:
+
+Interesting Observations:
+- Existence of HAC is attributed to people with higher age, about 75 years of age.
+- HAC is prevalent for patients with chronic diseases.
+- Higher number of ICD-9 discharge and procedures attributing to patients with HAC.
+- LOS is significantly higher for HAC = "1*Yes* vs HAC = *No*; almost twice.
+- HAC prevalent cases are attributed to small size of hospitals with less number of beds.
+- As mentioned earlier, Comorbidity which means simultaneous presence of two chronic diseases or         conditions in a patient is prevalent for patients with HAC
+
+```{r EDA Analysis VI/LOS}
+
+## Plotting LOS and log LOS against HACs
+p1 = ggplot(FL, aes(x=los, color = factor(HACs))) + geom_histogram(bins = 15) + theme_bw()
+p2 = ggplot(FL, aes(x=log(los), color = factor(HACs))) + geom_histogram(bins = 15) + theme_bw()
+
+gridExtra::grid.arrange(p1,p2,ncol=2)
+
+## LOS By Year
+boxplot(los ~ HACs*year,data = FL, ylab = "year", col = "darkolivegreen2", las = 1, horizontal = T, main = "LOS vs Year, differentiated by HACs",cex.axis=.55)
+
+## LOS by Three different conditions overlayed by HAC
+ggplot(data=FL, aes(x=los,y=condition, colour=HACs)) + geom_point()
+
+```
+
+In the first problem, we are examining if Length of Stay has an association with HAC. Looking at the histogram for length of stay, we can say that it is skewed towards the right. A log transformation helps to better the distribution removing excessive skewness. 
+
+Focusing on the boxplot for length of stay, we have included an interaction term between HAC and year on the Y-axis. We conclusively observe the yeraly pattern of length of stay for all the patients. From the plot, it is evident that cases where patient has had a hospital acquired condition, the length of stay is longer as compared to the patients who haven't. Interestingly, the described pattern is consistent and existent for all the years in the given dataset.
+
+Moving to the three types of conditions described earlier, we see that length of stay follows a consistent pattern for patients with HAC across all three distinct disorders. It is evidently higher for patients with HAC.
+
+*HF* - Heart Failure
+*AMI* - Heart Attack
+*PN* - Pneumonia
+
+```{r EDA Analysis VII/totchg}
+
+## Plotting TotChg and log TotChg against HACs
+p3 = ggplot(FL, aes(x=totchg, color = factor(HACs))) + geom_histogram(bins = 15) + theme_bw()
+p4 = ggplot(FL, aes(x=log(totchg), color = factor(HACs))) + geom_histogram(bins = 15) + theme_bw() 
+## Log Transformation makes it normal
+
+gridExtra::grid.arrange(p3,p4,ncol=2)
+
+## totchg By Year
+boxplot(totchg ~ HACs*year,data = FL, ylab = "year", col = "lightcoral", las = 1, horizontal = T, main = "totchg vs Year, differentiated by HACs", cex.axis=.55)
+
+## totchg by Three different conditions overlayed by HAC
+ggplot(data=FL, aes(x=totchg,y=condition, colour=HACs)) + geom_point()
+## Blue Points which have HAC == 1 are towards the higher end (right corner)
+
+```
+
+In the second problem, we are examining if Total Charge has an association with HAC. Looking at the histogram for length of stay, we can say that it is skewed towards the right. A log transformation helps to better the distribution as it makes the distribution close to normal. 
+
+Focusing on the boxplot for total charge, we have included an interaction term between HAC and year on the Y-axis. We conclusively observe the yeraly pattern of total charge for all the patients. From the plot, it is certain that cases where patient has had a hospital acquired condition, total charge is higher as compared to the patients who haven't. Total charge is considerably higher for patients with HAC.
+
+Moving to the three types of conditions described earlier, we see that total charge does not follow a consistent pattern for patients based on HAC condition for the three categories. It is spread out at both the ends. It does not follow the same pattern as total length of stay.
+
+*HF* - Heart Failure
+*AMI* - Heart Attack
+*PN* - Pneumonia
+
+
+```{r load}
+FL <- readRDS("FL_data.rds")
+summary(FL)
+str(FL)
+```
+
+
+```{r try subsetting}
+partition <- function(y,p=0.5) {
+  
+  #STEP 1: split up 0 and 1
+  set.seed(2020)
+  class1_ind <- which(y==as.integer(levels(y)[1]))
+  class2_ind <- which(y==as.integer(levels(y)[2]))
+  
+  l <- list()
+
+  #STEP 2: take subsamples for both 0 and 1
+  class1_ind_train <- sample(class1_ind, floor(p*table(y)[1]),replace=FALSE)
+  class2_ind_train <- sample(class2_ind, floor(p*table(y)[2]),replace=FALSE)
+
+  class1_ind_test <- class1_ind[!class1_ind %in% class1_ind_train]
+  class2_ind_test <- class2_ind[!class2_ind %in% class2_ind_train]
+
+  #STEP 3: combine 0 and 1 for both train and test
+  
+  l <- list(train=c(class1_ind_train,class2_ind_train),
+            test=c(class1_ind_test,class2_ind_test))
+  l
+}
+
+mylist <- partition(FL$HACs, 0.5)
+FL_train <- FL[mylist[[1]],]
+FL_train$drg <- NULL
+FL_test <- FL[mylist[[2]],]
+FL_test$drg <- NULL
+
+```
+
+
+
+##naive model lm with transformed reponse
+
+```{r log transformation train}
+#r adj = 0.3472 , most variables are significant
+naive1_log_train <- lm(log(los+1) ~ ., data = FL_train[,-5])
+summary(naive1_log_train)
+summary(naive1_log_train)$coefficients
+#HACs coef is 0.1361465, RMSE is 0.4037. Interpret coeff as, assumming all else equal, patients with HACs associate with exp(0.1361465) - 1 = 14% increase in los?
+
+#assumption check
+std_res1 <- rstandard(naive1_log_train) 
+par(mfrow=c(3,2)); plot(naive1_log_train); plot.ts(std_res1,xlab="Obs"); acf(std_res1)
+
+
+naive1_log_train.pred.test <- predict(naive1_log_train, newdata = FL_test[,-5]) 
+(naive1_log_test.MSE <- sqrt(mean(unlist(log(FL_test[,"los"]+1)-naive1_log_train.pred.test)^2)))
+#RMSE of test is 0.4048561, about the same
+
+#Adjusted R-squared:  0.5642, RMSE is  0.4148
+naive2_log_train <- lm(log(totchg+1) ~ ., data = FL_train[,-6])
+summary(naive2_log_train)
+summary(naive2_log_train)$coefficients
+#HACs coef is 0.1200362, RMSE is 0.4148 Interpret coeff as, assumming all else equal, patients with HACs associate with exp(0.1200362) - 1 = 12.75% increase in los?
+
+#assumption check
+std_res2 <- rstandard(naive2_log_train) 
+par(mfrow=c(3,2)); plot(naive2_log_train); plot.ts(std_res2,xlab="Obs"); acf(std_res2)
+
+
+naive2_log_train.pred.test <- predict(naive2_log_train, newdata = FL_test[,-6]) 
+(naive2_log_test.MSE <- sqrt(mean(unlist(log(FL_test[,"totchg"]+1)-naive2_log_train.pred.test)^2)))
+#RMSE of test is  0.4169066, about the same
+```
+
+
+```{r log transformation train no exclusion}
+#r adj = 0.5513  , most variables are significant
+naive1_log_train <- lm(log(los+1) ~ ., data = FL_train)
+summary(naive1_log_train)
+summary(naive1_log_train)$coefficients
+#HACs coef is 0.1183345, RMSE is 0.3347 . Interpret coeff as, assumming all else equal, patients with HACs associate with exp(0.1183345) - 1 = 12.56% increase in los?
+
+#assumption check 
+std_res3 <- rstandard(naive1_log_train) 
+par(mfrow=c(3,2)); plot(naive1_log_train); plot.ts(std_res3,xlab="Obs"); acf(std_res3)
+
+
+naive1_log_train.pred.test <- predict(naive1_log_train, newdata = FL_test) 
+(naive1_log_test.MSE <- sqrt(mean(unlist(log(FL_test[,"los"]+1)-naive1_log_train.pred.test)^2)))
+#RMSE of test is 0.3346342, about the same
+
+#Adjusted R-squared:   0.5401, RMSE is  0.4261
+naive2_log_train <- lm(log(totchg+1) ~ ., data = FL_train)
+summary(naive2_log_train)
+summary(naive2_log_train)$coefficients
+#HACs coef is 0.0680195, RMSE is 0.4261 Interpret coeff as, assumming all else equal, patients with HACs associate with exp(0.0680195) - 1 = 7.04% increase in totchg?
+
+#assumption check 
+std_res4 <- rstandard(naive2_log_train) 
+par(mfrow=c(3,2)); plot(naive2_log_train); plot.ts(std_res4,xlab="Obs"); acf(std_res4)
+
+
+naive2_log_train.pred.test <- predict(naive2_log_train, newdata = FL_test) 
+(naive2_log_test.MSE <- sqrt(mean(unlist(log(FL_test[,"totchg"]+1)-naive2_log_train.pred.test)^2)))
+#RMSE of test is   0.4261878, about the same
+```
+
+
+## Fit a lasso regression with totchg and los as response
+
+Lasso regression (Least Absolute Shrinkage and Selection Operator) provides a better prediction accuracy relative to the models presented earlier in the report as it shrinks and removes certain coefficients thereby reducing variance without substanstial increase in bias. It also reduces overfitting by eliminating certain variables from the model. Lasso regression was perfomed individually with our subject of interest ( totchg: total charges and los:length of stay) to study the influence of HACs (Hospital acquired conditions. 
+When totchg was regressed with all other predictos excluding los, we found that the coefficient log lasso model for HACs is 0.103531 at lambda (lambda 1se) 0.003866523 and HACs coefficient of 0.1070342 at lambda of 0.0002603775 (min lambda). At both levels of lamba, predictor HAC remain significant. We can conclude that HAC indeed play a significant role in predicting totchg, and a potential causal relationship between the two. The RMSE of the model is 0.6796682 at 1 sd lambda and  0.6807463 at min lambda.
+
+
+```{r lasso}
+
+FL_train$HACs <- as.numeric(as.character(FL_train$HACs))
+FL_train$teachstatus <- as.numeric((FL_train$teachstatus))
+FL_train$tcontrol <- as.numeric(as.character(FL_train$tcontrol))
+FL_train$rural  <- as.numeric(as.character(FL_train$rural))
+FL_train$pay1 <- as.numeric(as.character(FL_train$pay1))
+FL_train$condition <- as.numeric((FL_train$condition))
+FL_train$atype <- as.numeric(as.character(FL_train$atype))
+FL_train$aweekend <- as.numeric(as.character(FL_train$aweekend))
+FL_train$dqtr <- as.numeric(as.character(FL_train$dqtr))
+FL_train$dshospid <- as.numeric(as.character(FL_train$dshospid))
+FL_train$female <- as.numeric(as.character(FL_train$female))
+FL_train$medincstq <- as.numeric(as.character(FL_train$medincstq))
+FL_train$race <- as.numeric(as.character(FL_train$race))
+FL_train$year <- as.numeric(as.character(FL_train$year))
+FL_train$tran_out <- as.numeric(as.character(FL_train$tran_out))
+FL_train$zipinc_qrtl <- as.numeric(as.character(FL_train$zipinc_qrtl))
+FL_train$cm_anemdef <- as.numeric(as.character(FL_train$cm_anemdef))
+FL_train$cm_chf <- as.numeric(as.character(FL_train$cm_chf))
+FL_train$cm_chrnlung <- as.numeric(as.character(FL_train$cm_chrnlung))
+FL_train$cm_coag <- as.numeric(as.character(FL_train$cm_coag))
+FL_train$cm_depress <- as.numeric(as.character(FL_train$cm_depress))
+FL_train$cm_dm <- as.numeric(as.character(FL_train$cm_dm))
+FL_train$cm_dmcx <- as.numeric(as.character(FL_train$cm_dmcx))
+FL_train$cm_htn_c <- as.numeric(as.character(FL_train$cm_htn_c))
+FL_train$cm_hypothy <- as.numeric(as.character(FL_train$cm_hypothy))
+FL_train$cm_lytes <- as.numeric(as.character(FL_train$cm_lytes))
+FL_train$cm_neuro <- as.numeric(as.character(FL_train$cm_neuro))
+FL_train$cm_obese <- as.numeric(as.character(FL_train$cm_obese))
+FL_train$cm_perivasc <- as.numeric(as.character(FL_train$cm_perivasc))
+FL_train$cm_renlfail <- as.numeric(as.character(FL_train$cm_renlfail))
+FL_train$read <- as.numeric((FL_train$read))
+
+FL_test$HACs <- as.numeric(as.character(FL_test$HACs))
+FL_test$teachstatus <- as.numeric((FL_test$teachstatus))
+FL_test$tcontrol <- as.numeric(as.character(FL_test$tcontrol))
+FL_test$rural  <- as.numeric(as.character(FL_test$rural))
+FL_test$pay1 <- as.numeric(as.character(FL_test$pay1))
+FL_test$condition <- as.numeric((FL_test$condition))
+FL_test$atype <- as.numeric(as.character(FL_test$atype))
+FL_test$aweekend <- as.numeric(as.character(FL_test$aweekend))
+FL_test$dqtr <- as.numeric(as.character(FL_test$dqtr))
+FL_test$dshospid <- as.numeric(as.character(FL_test$dshospid))
+FL_test$female <- as.numeric(as.character(FL_test$female))
+FL_test$medincstq <- as.numeric(as.character(FL_test$medincstq))
+FL_test$race <- as.numeric(as.character(FL_test$race))
+FL_test$year <- as.numeric(as.character(FL_test$year))
+FL_test$tran_out <- as.numeric(as.character(FL_test$tran_out))
+FL_test$zipinc_qrtl <- as.numeric(as.character(FL_test$zipinc_qrtl))
+FL_test$cm_anemdef <- as.numeric(as.character(FL_test$cm_anemdef))
+FL_test$cm_chf <- as.numeric(as.character(FL_test$cm_chf))
+FL_test$cm_chrnlung <- as.numeric(as.character(FL_test$cm_chrnlung))
+FL_test$cm_coag <- as.numeric(as.character(FL_test$cm_coag))
+FL_test$cm_depress <- as.numeric(as.character(FL_test$cm_depress))
+FL_test$cm_dm <- as.numeric(as.character(FL_test$cm_dm))
+FL_test$cm_dmcx <- as.numeric(as.character(FL_test$cm_dmcx))
+FL_test$cm_htn_c <- as.numeric(as.character(FL_test$cm_htn_c))
+FL_test$cm_hypothy <- as.numeric(as.character(FL_test$cm_hypothy))
+FL_test$cm_lytes <- as.numeric(as.character(FL_test$cm_lytes))
+FL_test$cm_neuro <- as.numeric(as.character(FL_test$cm_neuro))
+FL_test$cm_obese <- as.numeric(as.character(FL_test$cm_obese))
+FL_test$cm_perivasc <- as.numeric(as.character(FL_test$cm_perivasc))
+FL_test$cm_renlfail <- as.numeric(as.character(FL_test$cm_renlfail))
+FL_test$read <- as.numeric((FL_test$read))
+
+#this model is for total charge
+Y <- as.matrix(log(FL_train[,5] +1))
+X <- as.matrix(FL_train[,-c(5:6)])
+Y.test <- as.matrix(log(FL_test[,5]+1))
+X.test <- as.matrix(FL_test[,-c(5:6)])
+
+cvfit.l <- cv.glmnet(x=X,y=Y,family="gaussian",alpha=1)
+plot(cvfit.l)
+cbind(one_se = coef(cvfit.l,s="lambda.1se"),min = coef(cvfit.l,s="lambda.min"))
+
+
+
+cvfit.l.pred.test <- predict(cvfit.l, newx = X.test,s="lambda.min") 
+(cvfit.l_test.MSE <- sqrt(mean(unlist(Y.test-cvfit.l.pred.test)^2)))
+#RMSE is 20573.09
+
+cvfit.l.pred.test <- predict(cvfit.l, newx = X.test,s="lambda.1se") 
+(cvfit.l_test.MSE <- sqrt(mean(unlist(Y.test-cvfit.l.pred.test)^2)))
+#RMSE is  Go with this one, much less complex but comparable result on our test set
+```
+
+We ran a second model to regress totchg with all predictos including los (length of stay). At lambda (lambda1se) of 0.002690633 the HAC coeffecient was 0.04336801 and at lambda of 0.000316637, the coefficeint of HAC was 0.06502471. At both levels of lambda, minimum as well as 1 standard deviation from the minimun lambda, HAC was found to be significant. This reiterates our earlier observation that HAC indeed play a some role in predicting los. The change in the coeffienct in these two models can be attributed to the nature of relationship between length of stay and total charges, which is highly correlated. 
+
+```{r lasso include los}
+Y <- as.matrix(log(FL_train[,5]+1))
+X <- as.matrix(FL_train[,-5])
+Y.test <- as.matrix(log(FL_test[,5]+1))
+X.test <- as.matrix(FL_test[,-c(5)])
+
+cvfit.l <- cv.glmnet(x=X,y=Y,family="gaussian",alpha=1)
+par(mfrow=c(1,1))
+plot(cvfit.l)
+
+cbind(one_se = coef(cvfit.l,s="lambda.1se"),min = coef(cvfit.l,s="lambda.min"))
+
+```
+
+We perform a lasso regression on the reponse variable, length of stay with other predictors besides total charges. The coefficeint of the HAC from the log model was observed to be 0.1297738 at lambda 0.004118958 and 0.1315453 at lambda 0.0002773768.
+
+```{r lasso 2 los}
+Y <- as.matrix(log(FL_train[,6]+1))
+X <- as.matrix(FL_train[,-c(5:6)])
+Y.test <- as.matrix(log(FL_test[,6]+1))
+X.test <- as.matrix(FL_test[,-c(5:6)])
+
+cvfit.l <- cv.glmnet(x=X,y=Y,family="gaussian",alpha=1)
+plot(cvfit.l)
+
+cbind(one_se = coef(cvfit.l,s="lambda.1se"),min = coef(cvfit.l,s="lambda.min"))
+
+cvfit.l.pred.test <- predict(cvfit.l, newx = X.test,s="lambda.min") 
+(cvfit.l_test.MSE <- sqrt(mean(unlist(Y.test-cvfit.l.pred.test)^2)))
+#RMSE is 
+
+cvfit.l.pred.test <- predict(cvfit.l, newx = X.test,s="lambda.1se") 
+(cvfit.l_test.MSE <- sqrt(mean(unlist(Y.test-cvfit.l.pred.test)^2)))
+#RMSE is  Go with this one, much less complex but comparable result on our test set
+
+#this model has higher RMSE as compared to those fitted earlier (naive with untransformed response). It should be the case as these models are less complex (using fewer predictors). 
+```
+
+```{r lasso include totchg}
+Y <- as.matrix(log(FL_train[,6])+1)
+X <- as.matrix(FL_train[,-6])
+Y.test <- as.matrix(log(FL_test[,6])+1)
+X.test <- as.matrix(FL_test[,-c(6)])
+
+
+cvfit.l <- cv.glmnet(x=X,y=Y,family="gaussian",alpha=1)
+par(mfrow=c(1,1))
+
+plot(cvfit.l)
+cbind(one_se = coef(cvfit.l,s="lambda.1se"),min = coef(cvfit.l,s="lambda.min"))
+
+```
+
+
+
+**Regression adjustment**
+
+By examining the data, we realized that there are only 170 hospital IDs with HACs = 1. As such, we need to drop observations with hospital ID where there is no patients with HACs = 1.
+
+Similar to the previous parts, we run 4 regression adjustment. They are:
+
+- los as the response, excluding totchg as a predictor
+- los as the response, including totchg as a predictor
+- totchg as the response, excluding los as a predictor
+- totchg as the response, including los as a predictor
+
+For the 1st case, we have the ETA = 0.1894895, which means HACs increase length of stay by 20.86% and has a 95% CI bracketted by [0.1880983, 0.1908806] (which indicates statistical significance). This estimation is higher than what we had previously. Based on the box plots, we can see that the imputed values for treatment is much less than the observed, while the imputed value of control case is slightly higher than the observed. These two obervations also support the observation that the causal effect may be slightly underestimated. Overall, the regression adjustment methods seems to yield reasonable results, perhaps conservative because we seem to overestimate control cases and underestimate treatment cases when we impute. So, this might lead to slightly downward biased estimate of the average treatment effect.
+
+```{r doing Regression adj los}
+FL_train_select <- FL
+FL_train_select$drg <- NULL
+FL_train_select_trt <- subset(FL_train_select,HACs=='1')[,-c(5,41)]
+FL_train_select_ctrl <- subset(FL_train_select,HACs=='0')[,-c(5,41)]
+c(treated_cases = nrow(FL_train_select_trt),control_cases = nrow(FL_train_select_ctrl))
+
+FL_train_select_trt = droplevels(FL_train_select_trt) # drop the levels from Region in t 
+unique(FL_train_select_trt$dshospid)
+
+unique(FL_train_select_ctrl$dshospid)
+
+FL_train_select_ctrl <- FL_train_select_ctrl[which(FL_train_select_ctrl$dshospid
+%in% FL_train_select_trt$dshospid),]
+FL_train_select_ctrl <- droplevels(FL_train_select_ctrl)
+
+trt_model = lm(log(los+1)~.,data = FL_train_select_trt)# model from teated
+ctrl_model = lm(log(los+1)~.,data = FL_train_select_ctrl)# model from control
+impute_ctrl = predict(ctrl_model,newdata = FL_train_select_trt)
+impute_trt = predict(trt_model,newdata = FL_train_select_ctrl)
+complete_data_trt_cases = data.frame(cbind(Under_Treatment = log(FL_train_select_trt$los+1), Under_Control = impute_ctrl)) 
+complete_data_ctrl_cases = data.frame(cbind(Under_Treatment = impute_trt,Under_Control = log(FL_train_select_ctrl$los+1))) 
+                                            
+complete_data = rbind(complete_data_trt_cases,complete_data_ctrl_cases)
+t.test(complete_data$Under_Treatment,complete_data$Under_Control,paired=TRUE)
+
+mean(complete_data_trt_cases$Under_Treatment > complete_data_trt_cases$Under_Control)
+mean(complete_data_ctrl_cases$Under_Treatment > complete_data_ctrl_cases$Under_Control)
+
+complete_data$Trt_Case = c(rep("Observed",length(impute_ctrl)),rep("Imputed",length(impute_trt)))
+complete_data$Ctrl_Case = c(rep("Imputed",length(impute_ctrl)),rep("Observed",length(impute_trt)))
+par(mfrow=c(2,2))
+boxplot(Under_Treatment~Trt_Case,data = complete_data,main = "Treatment Responses") 
+boxplot(Under_Control~Ctrl_Case,data = complete_data,main = "Control Responses") 
+plot(log(FL_train_select_trt$los+1),predict(trt_model)); abline(a=0,b=1) 
+plot(log(FL_train_select_ctrl$los+1),predict(ctrl_model)); abline(a=0,b=1)
+```
+
+
+With the addition of totchg in predictors, we can that the effect of HACs on los reduces to 0.1151178 (translated to 12.2% increase in los). This effect is statiscally significant, evidenced by the 95% CI of [0.1140730, 0.1161626]. We can also deduct that there is a downward biased estimate of the average treatment effect and the bias seems to be more prominent in this case, which is true as we have seen eaelier that the presence of totchg reduces effect of HACs on los.
+
+```{r doing Regression adj los2}
+FL_train_select <- FL
+FL_train_select$drg <- NULL
+FL_train_select_trt <- subset(FL_train_select,HACs=='1')[,-c(41)]
+FL_train_select_ctrl <- subset(FL_train_select,HACs=='0')[,-c(41)]
+c(treated_cases = nrow(FL_train_select_trt),control_cases = nrow(FL_train_select_ctrl))
+
+FL_train_select_trt = droplevels(FL_train_select_trt) # drop the levels from Region in t 
+unique(FL_train_select_trt$dshospid)
+
+unique(FL_train_select_ctrl$dshospid)
+
+FL_train_select_ctrl <- FL_train_select_ctrl[which(FL_train_select_ctrl$dshospid
+%in% FL_train_select_trt$dshospid),]
+FL_train_select_ctrl <- droplevels(FL_train_select_ctrl)
+
+trt_model = lm(log(los+1)~.,data = FL_train_select_trt)# model from teated
+ctrl_model = lm(log(los+1)~.,data = FL_train_select_ctrl)# model from control
+impute_ctrl = predict(ctrl_model,newdata = FL_train_select_trt)
+impute_trt = predict(trt_model,newdata = FL_train_select_ctrl)
+complete_data_trt_cases = data.frame(cbind(Under_Treatment = log(FL_train_select_trt$los+1), Under_Control = impute_ctrl)) 
+complete_data_ctrl_cases = data.frame(cbind(Under_Treatment = impute_trt,Under_Control = log(FL_train_select_ctrl$los+1))) 
+                                            
+complete_data = rbind(complete_data_trt_cases,complete_data_ctrl_cases)
+t.test(complete_data$Under_Treatment,complete_data$Under_Control,paired=TRUE)
+
+mean(complete_data_trt_cases$Under_Treatment > complete_data_trt_cases$Under_Control)
+mean(complete_data_ctrl_cases$Under_Treatment > complete_data_ctrl_cases$Under_Control)
+
+complete_data$Trt_Case = c(rep("Observed",length(impute_ctrl)),rep("Imputed",length(impute_trt)))
+complete_data$Ctrl_Case = c(rep("Imputed",length(impute_ctrl)),rep("Observed",length(impute_trt)))
+par(mfrow=c(2,2))
+boxplot(Under_Treatment~Trt_Case,data = complete_data,main = "Treatment Responses") 
+boxplot(Under_Control~Ctrl_Case,data = complete_data,main = "Control Responses") 
+plot(log(FL_train_select_trt$los+1),predict(trt_model)); abline(a=0,b=1) 
+plot(log(FL_train_select_ctrl$los+1),predict(ctrl_model)); abline(a=0,b=1)
+```
+
+The effect of HACs on log(totchg) is 0.174836, which is a 19% increase in total charge. The effect is statiscally significant. The imputed and observes for control cases are pretty close, while observed for treatment is higher than imputed values. Thus, there is some degree of downward bias here, but it's not as strong like in the case of los
+
+
+```{r doing Regression adj totchg}
+FL_train_select <- FL
+FL_train_select$drg <- NULL
+FL_train_select_trt <- subset(FL_train_select,HACs=='1')[,-c(6,41)]
+FL_train_select_ctrl <- subset(FL_train_select,HACs=='0')[,-c(6,41)]
+c(treated_cases = nrow(FL_train_select_trt),control_cases = nrow(FL_train_select_ctrl))
+
+FL_train_select_trt = droplevels(FL_train_select_trt) # drop the levels from Region in t 
+unique(FL_train_select_trt$dshospid)
+
+unique(FL_train_select_ctrl$dshospid)
+
+FL_train_select_ctrl <- FL_train_select_ctrl[which(FL_train_select_ctrl$dshospid
+%in% FL_train_select_trt$dshospid),]
+FL_train_select_ctrl <- droplevels(FL_train_select_ctrl)
+
+trt_model = lm(log(totchg+1)~.,data = FL_train_select_trt)# model from teated
+ctrl_model = lm(log(totchg+1)~.,data = FL_train_select_ctrl)# model from control
+impute_ctrl = predict(ctrl_model,newdata = FL_train_select_trt)
+impute_trt = predict(trt_model,newdata = FL_train_select_ctrl)
+complete_data_trt_cases = data.frame(cbind(Under_Treatment = log(FL_train_select_trt$totchg+1), Under_Control = impute_ctrl)) 
+complete_data_ctrl_cases = data.frame(cbind(Under_Treatment = impute_trt,Under_Control = log(FL_train_select_ctrl$totchg+1))) 
+                                            
+complete_data = rbind(complete_data_trt_cases,complete_data_ctrl_cases)
+t.test(complete_data$Under_Treatment,complete_data$Under_Control,paired=TRUE)
+
+mean(complete_data_trt_cases$Under_Treatment > complete_data_trt_cases$Under_Control)
+mean(complete_data_ctrl_cases$Under_Treatment > complete_data_ctrl_cases$Under_Control)
+
+complete_data$Trt_Case = c(rep("Observed",length(impute_ctrl)),rep("Imputed",length(impute_trt)))
+complete_data$Ctrl_Case = c(rep("Imputed",length(impute_ctrl)),rep("Observed",length(impute_trt)))
+par(mfrow=c(2,2))
+boxplot(Under_Treatment~Trt_Case,data = complete_data,main = "Treatment Responses")
+boxplot(Under_Control~Ctrl_Case,data = complete_data,main = "Control Responses")
+plot(log(FL_train_select_trt$totchg+1),predict(trt_model)); abline(a=0,b=1)
+plot(log(FL_train_select_ctrl$totchg+1),predict(ctrl_model)); abline(a=0,b=1)
+
+```
+
+For the last case, we have the effect of HACs on totchg is 0.08718293, which means presence of HACs increases the total charge by 9.11%. The effect is statistically significant, given the 95% CI of [0.08605660,0.08830926]. The problem of downward bias persists, and we can see that presense of los as a predictor lowers the impact of HACs on totchg.
+
+```{r doing Regression adj totchg2}
+FL_train_select <- FL
+FL_train_select$drg <- NULL
+FL_train_select_trt <- subset(FL_train_select,HACs=='1')[,-c(41)]
+FL_train_select_ctrl <- subset(FL_train_select,HACs=='0')[,-c(41)]
+c(treated_cases = nrow(FL_train_select_trt),control_cases = nrow(FL_train_select_ctrl))
+
+FL_train_select_trt = droplevels(FL_train_select_trt) # drop the levels from Region in t 
+unique(FL_train_select_trt$dshospid)
+
+unique(FL_train_select_ctrl$dshospid)
+
+FL_train_select_ctrl <- FL_train_select_ctrl[which(FL_train_select_ctrl$dshospid
+%in% FL_train_select_trt$dshospid),]
+FL_train_select_ctrl <- droplevels(FL_train_select_ctrl)
+
+trt_model = lm(log(totchg+1)~.,data = FL_train_select_trt)# model from teated
+ctrl_model = lm(log(totchg+1)~.,data = FL_train_select_ctrl)# model from control
+impute_ctrl = predict(ctrl_model,newdata = FL_train_select_trt)
+impute_trt = predict(trt_model,newdata = FL_train_select_ctrl)
+complete_data_trt_cases = data.frame(cbind(Under_Treatment = log(FL_train_select_trt$totchg+1), Under_Control = impute_ctrl)) 
+complete_data_ctrl_cases = data.frame(cbind(Under_Treatment = impute_trt,Under_Control = log(FL_train_select_ctrl$totchg+1))) 
+                                            
+complete_data = rbind(complete_data_trt_cases,complete_data_ctrl_cases)
+t.test(complete_data$Under_Treatment,complete_data$Under_Control,paired=TRUE)
+
+mean(complete_data_trt_cases$Under_Treatment > complete_data_trt_cases$Under_Control)
+mean(complete_data_ctrl_cases$Under_Treatment > complete_data_ctrl_cases$Under_Control)
+
+complete_data$Trt_Case = c(rep("Observed",length(impute_ctrl)),rep("Imputed",length(impute_trt)))
+complete_data$Ctrl_Case = c(rep("Imputed",length(impute_ctrl)),rep("Observed",length(impute_trt)))
+par(mfrow=c(2,2))
+boxplot(Under_Treatment~Trt_Case,data = complete_data,main = "Treatment Responses")
+boxplot(Under_Control~Ctrl_Case,data = complete_data,main = "Control Responses")
+plot(log(FL_train_select_trt$totchg+1),predict(trt_model)); abline(a=0,b=1)
+plot(log(FL_train_select_ctrl$totchg+1),predict(ctrl_model)); abline(a=0,b=1)
+
+```
+
+To quickly sum up, we believe that the causal effect between HACs and los and HACs and totchg will result in multicollinearity when we use both HACs and los to predict totchg or both HACs and totchg to predict los. Nevertheless, we also believe that it's not justified to excluded los in model predict totchg and vice versa. So we can safely say that the impact of HACs on los should be between 12.2% and 20.86% increase and impact of HACs on totchg should be between 9.11% and 19%. There is definite associations in form of causal effect between these variables.
