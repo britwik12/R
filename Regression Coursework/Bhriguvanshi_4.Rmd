@@ -24,7 +24,7 @@ library(car)
 data <- read.csv("College.csv", header = TRUE)
 dim(data)
 
-# Converting Factor into Integer 
+#Converting Factor into Integer 
 data$Private <- as.integer(data$Private)
 
 ## Using ifelse statement to decode Private schools: 1 for Private, 0 for not being Private
