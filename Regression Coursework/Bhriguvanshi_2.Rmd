@@ -123,7 +123,6 @@ The linear model performs a litle better compared to the model in question 1c as
 Making the number of bedrooms as categorical, we can compare the mean difference for 3,4,5 bedrooms as compared to 2 bedrooms units keeping sqft as fixed. 
 
 #Question 1e
-
 Repeat (d), except now you will include the interaction term in your model. Does effect of sqft on price differ by number of bedrooms? If so, use your model output to characterize effect of sqft on price for each bedrooms level that you include in the model. Describe the differences you see in detail.
 
 ```{r q1e}
