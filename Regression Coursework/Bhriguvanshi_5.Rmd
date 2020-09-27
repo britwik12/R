@@ -83,7 +83,6 @@ boxplot(BLK ~ y,data = data, ylab = "BLK", col = "darkkhaki")
 boxplot(TOV ~ y,data = data, ylab = "TOV", col = "cyan4")
 
 ```
-
 Response:
 
 Observing the corrplot and heatmap, we find that great number of predictor variables have 
