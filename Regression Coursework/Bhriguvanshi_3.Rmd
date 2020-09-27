@@ -15,7 +15,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 
 ```{r q1}
-
 library("tidyverse")
 library("dplyr")
 library("ggplot2")
