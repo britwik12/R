@@ -1,0 +1,433 @@
+---
+title: "HW2"
+author: "Bhriguvanshi and Chappagai"
+date: "9/16/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r 2.1(a)}
+## Probabiity of testing positive given that you have Cancer (True Positive)
+TP <- 3/4
+
+## Probabiity of testing negative given that you have Cancer (False Negative)
+FN <- 1/4
+
+## Probabiity of testing positive given that you do not have Cancer (False Positive)
+FP <- 2/3
+
+## Probabiity of testing negative given that you do not have Cancer (True Negative)
+TN <- 1/3
+```
+
+Response: The two true statements are:
+P(-|C) - The Probability of getting a negative result, when the person actually has cancer.
+
+P(+|not C) - The Probability of getting a positive result when the person does not have cancer
+
+```{r 2.1(b)}
+
+# Let X = Acutual state of the person (1=True, 0=False)
+
+# Let Y be the Test results (1=Positive, 0=Negative)
+
+# The sensitivity is given by P (Y=1 | X=1)
+(sensitivity <- 3/4)
+```
+
+```{r 2.1(c)}
+## Probability of getting cancer
+P_Cancer <- 0.01
+
+## Probability of not getting cancer
+P_Not_Cancer <- 1-P_Cancer
+
+data2.1 <- matrix(c(0.0075,0.0025,2/3,1/3), nrow = 2, byrow = TRUE)
+
+rownames(data2.1) <- c("Cancer", "No Cancer");
+colnames(data2.1) <- c("Positive", "Negative")
+
+print(data2.1)
+```
+
+```{r 2.1(d)}
+## Probability of Positive
+(Prob_Positive <- data2.1[1,1] + data2.1[2,1])
+
+## Probability of Negative
+(Prob_Negative <- data2.1[1,2] + data2.1[2,2])
+```
+
+```{r 2.1(e)}
+# P (C|+) - The probability of getting cancer given that the test is positive
+
+## Required Probability
+(prob <- (TP*P_Cancer)/(TP*P_Cancer + FP*P_Not_Cancer))
+```
+
+Interpretation: Given the results are the positive, the probability of having a prostate cancer is 0.01123596
+
+```{r 2.7(a)}
+## NO CODE
+## Odds = Probability of Success/ Probability of Failure
+```
+
+Response: The correct interpretation is - the odds of survivial of femaile is 11.4 times the survivial of male.
+
+```{r 2.7(b)}
+## Odds of srivival for male 
+(Odds_For_Male_Survival <- 2.9/11.4)
+
+## Proportion for Male Survival (Let it be P_Male)
+## (P_Male/(1-P_Male)) = 0.254 
+## Solving for P_Male; we get:
+(P_Male <- 0.2025)
+
+## Proportion for Feale Survival (Let it be P_Female)
+## (P_Female/(1-P_Female)) = 2.9 
+## Solving for P_Female; we get:
+(P_Female <- 0.743)
+```
+
+```{r 2.7(c)}
+## Relative Risk
+(Relative_Risk <- P_Female/P_Male)
+```
+
+Response: The correct interpretation is - "Probability of survival of females is 3.669136 times the male."
+
+```{r 2.11(a)}
+## Smokers who died of lung cancer (P1)
+P1 <- 0.0014
+
+## Non-Smoker who died of lung cancer (P2)
+P2 <- 0.0001
+
+## Smokers who died of heart disease (P3)
+P3 <- 0.00669
+
+## Non-Smokers who died of heart disease (P4)
+P4 <- 0.00413
+
+## Difference of Proportion for Lung Cancer between Smokers and Non-Smokers
+(Lung_Cancer_Diff <- (P1 - P2))
+
+## Difference of Proportion for Heart Disease between Smokers and Non-Smokers
+(Heart_Disease_Diff <- (P3 - P4))
+
+## Relative Risk for Lung Cancer 
+(Relative_Risk_1 <- (P1/P2))
+
+## Relative Risk for Heart Disease 
+(Relative_Risk_2 <- (P3/P4))
+
+## ODds Ratio for Lung Cancer 
+(Odds_Ratio_1 <- (P1/(1-P1))/(P2/(1-P2)))
+
+## ODds Ratio for Heart Disease
+(Odds_Ratio_2 <- (P3/(1-P3))/(P4/(1-P4)))
+```
+
+Response: From the above results, it is clear that smoking is more strongly related to lung cancer than heart disease.
+
+```{r 2.11(b)}
+## NO CODE
+```
+
+Response: Barring the difference in proportion for heart disease, we see that lung cancer is more closelt related to smoking than for heart disease. Since, the difference of proportion for heart disease is higher, eliminating smoking would save more people.
+
+```{r 2.12(a)}
+data2.12 <- matrix(c(198,19736,193,19749), nrow = 2, byrow = TRUE)
+
+rownames(data2.12) <- c("Placebo", "Aspirin"); 
+colnames(data2.12) <- c("Yes", "No")
+
+print(data2.12)
+```
+
+```{r 2.12(b)}
+## Proportion of heart attack taking Aspirin (p1)
+(p1 <- data2.12[1,1]/(data2.12[1,1]+data2.12[1,2]))
+
+## Proportion of heart attack taking Placebo (p2)
+(p2 <- data2.12[2,1]/(data2.12[2,1]+data2.12[2,2]))
+
+(odds_ratio <- ((p1/(1-p1))/(p2/(1-p2))))
+```
+
+Response: The odds of having heart attack is 1.026852 time for Aspirin as compared to Placebo.
+
+```{r 2.12(c)}
+## Take the log of Odds Ratio
+(log_theta <- log(odds_ratio))
+
+(standard_error <- sqrt((1/data2.12[1,1]) + (1/data2.12[1,2]) + (1/data2.12[2,1]) + (1/data2.12[2,2])))
+
+## 95% Confidence Interval
+alpha <- (1-0.95)
+
+## Critical z-score
+z <- qnorm(1-alpha/2)   
+
+## Confidence Interval
+(CI <- (log_theta + c(-1,1)*z*standard_error))
+
+## Take Exponential of CI
+(CI <- exp(CI))
+```
+
+Response: Since, the odds ratio is not greater than 1, taking aspirine does not make significant difference than taking placebo. 
+
+Additionally, odds of attack for patients with Aspirin is approximately 2.6% higher than Non-Aspirin takers.
+
+```{r 2.13(a)}
+data2.13 <- matrix(c(509,116,398,104), nrow = 2, byrow = TRUE)
+
+rownames(data2.13) <- c("Females", "Males")
+colnames(data2.13) <- c("Yes", "No or Undecided") 
+
+# Proportion of females who believe in afterlife (Female_Afterlife)
+
+(Female_Afterlife <- (509/(509+116)))
+
+# Proportion of Males who believe in afterlife (Male_Afterlife)
+
+(Male_Afterlife <- (398/(398+104)))
+
+## Sample Difference in Population
+
+(Sample_Difference <- Female_Afterlife - Male_Afterlife)
+
+## Standard Error
+n1 <- 509 + 116   ## Total Female
+n2 <- 398 + 104   ## Total Male
+
+(SE <- sqrt(((Female_Afterlife*(1-Female_Afterlife))/n1) + ((Male_Afterlife*(1-Male_Afterlife))/n2))) 
+
+## 95% Confidence Interval
+alpha <- (1-0.9)
+
+## Critical z-score
+z <- qnorm(1-alpha/2)   
+
+## Confidence Interval
+(CI <- (Sample_Difference + c(-1,1)*z*SE))
+```
+
+Response: The 90% Confidence interval for the population difference is [-0.01766588  0.06080851]
+There is difference in opinion between male and female.
+
+```{r 2.13(b)}
+## Let the estimated odds ratio be theta
+
+(theta <- (509/116)/(398/104))
+(log_theta <- log(theta))
+
+(standard_error <- sqrt((1/509) + (1/116) + (1/398) + (1/104)))
+
+## 90% Confidence Interval
+alpha <- (1-0.9)
+
+## Critical z-score
+z <- qnorm(1-alpha/2)   
+
+## Confidence Interval
+(CI <- (log_theta + c(-1,1)*z*standard_error))
+
+## Take Exponential of CI
+(CI <- exp(CI))
+```
+
+Response: The CI for odds ratio is [0.8948511 ,1.4691608]. The ratio contains 1, hence there is no difference in the belief between men and women.
+
+```{r 2.13(c)}
+chisq.test(data2.13)
+```
+
+Response: From the chi-square test, since p-value is greater than 0.05, we cannot reject the null hypothesis. Hence, there does not exist any difference in opinion of afterlife between male and female.
+
+```{r 2.17(a)}
+data2.17 <- matrix(c(189,10845,104,10933), nrow = 2, byrow = TRUE)
+
+rownames(data2.17) <- c("Placebo", "Aspirin"); colnames(data2.17) <- c("Yes", "No")
+
+print(data2.17)
+
+chisq.test(data2.17)
+```
+
+```{r 2.17(b)}
+library(DescTools)
+GTest(data2.17, correct="none")
+```
+
+Response: Both the tests performed above reject independence (p-value is less than 0.05), hence we can conclude that there is siginificant difference between Placebo and Aspirin.
+
+```{r 2.20}
+data2.20 <- matrix(c(59,109,53,85,100,36), nrow = 2, byrow = TRUE)
+
+rownames(data2.20) <- c("Advanced", "Preliminary"); 
+colnames(data2.20) <- c("Living Alone", "With Spouse", "With Others")
+
+print(data2.20)
+
+## Chi-Sq Test
+chisq.test(data2.20)
+## G-Test 
+GTest(data2.20, correct="none")
+```
+
+Response: After conducting the tests above, we see that the reported P-value in both the cases is approximatey 0.015, which is close to the reported P-value of 0.02 by the author.
+
+```{r 2.21 (a)}
+## NO CODE
+```
+
+Response: The values of different columns (A,B,C) are not independent of each other. In addition, each person is allowed to chose more than one category, i.e., sum of men in the rows is more than 100. Hence, Chi-square independence cannot be used.
+
+```{r 2.21 (b)}
+data2.21 <- matrix(c(60,40,75,25), nrow = 2, byrow = TRUE)
+
+rownames(data2.21) <- c("Men", "Women"); 
+colnames(data2.21) <- c("Yes", "No")
+
+print(data2.21)
+
+prop.test(data2.21)
+```
+
+Response: We can create 3 two-by-two tables looking at one variable at a time; knowing that a number of observations in each row is 100. 
+
+```{r 2.27 (a)}
+data2.27 <- matrix(c(9,44,13,10,11,52,23,22,9,41,12,27), nrow = 3, byrow = TRUE)
+
+rownames(data2.27) <- c("Low", "Middle", "High"); 
+colnames(data2.27) <- c("High School", "HS Grad", "College", "College Grad")
+
+print(data2.27)
+
+## Chi-Sq Test
+chisq.test(data2.27)
+## G-Test 
+GTest(data2.27, correct="none")
+```
+
+Response: Chi-Square value in 8.8709 and GTest value is 8.9165, both of them being high and p-values are above the 0.05 threshold. Hence, we cannot reject the null hypothesis for no association. The test is not appropriate as it ignores the nature of the data.
+
+```{r 2.27 (b)}
+df <- data.frame("Count" = c(9,44,13,10,11,52,23,22,9,41,12,27), "Income_Level" = c("Low", "Low","Low","Low","Middle","Middle","Middle","Middle", "High","High","High","High"), "Education_Level" = c("HS","HSGrad", "SC", "CG", "HS","HSGrad", "SC", "CG", "HS","HSGrad", "SC", "CG"))
+
+print(df)
+
+model <- glm(Count ~ Income_Level + Education_Level, family = "poisson", data = df)
+summary(model)
+
+## Standardized Residuals
+(rstandard(model))
+
+## Studentized Residuals
+(rstudent(model))
+```
+
+Response: The pattern suggest that higher income is associated with higher educational aspirations.
+
+```{r 2.27(c)}
+DP.data = array(c(9,44,13,10,11,52,23,22,9,41,12,27),dim=c(3,4,3),dimnames=list(def=c("Low","Middle", "High"),DP = c("HS","HS Grad", "College", "College Grad"),Vic=c("Low","Middle", "High")))
+
+mantelhaen.test(DP.data)
+```
+
+Response: The Cochran-Mantel-Haenszel chi-squared test provides a test of comparing linear association and no assocation which is more powerful. The p-value is less than 0.05 which shows significant association between income level and education expertise.
+
+```{r 2.30}
+data2.30 <- matrix(c(21,2,15,3), nrow = 2, byrow = TRUE)
+
+rownames(data2.30) <- c("Surgery", "Radiation Therapy"); 
+colnames(data2.30) <- c("Cancer Controlled", "Cancer Not Controlled")
+
+print(data2.30)
+
+## This follows a Hypergeometric Distribution
+## Required Probability
+(prob <- choose(23,21)*choose(18,15)/choose(41,36) + choose(23,22)*choose(18,14)/choose(41,36) + choose(23,23)*choose(18,13)/choose(41,36))
+```
+
+Response: The p-value is greater than 0.05, hence the treatment of cancer is independent of surgery and radiation therapy. 
+
+```{r 2.33(a)}
+DP.data = array(c(19,11,132,52,0,6,9,97),dim=c(2,2,2),dimnames=list(def=c("W","B"),DP = c("Yes","No"),Vic=c("White","Black")))
+
+print(DP.data)
+```
+
+```{r 2.33(b)}
+library(vcdExtra)
+CMHtest(DP.data,strata="Vic",overall=TRUE)
+
+DP.data = array(c(19,11,132,52,0.5,6.5,9.5,97.5),dim=c(2,2,2),dimnames=list(def=c("W","B"),DP = c("Yes","No"),Vic=c("White","Black")))
+
+print(DP.data)
+
+library(oddsratio)
+## Odds Ratio when Victim's race is white
+oddsratio(DP.data[,,1],log=FALSE)
+## Odds Ratio when Victim's race is Black
+oddsratio(DP.data[,,2],log=FALSE)
+```
+
+```{r 2.33(c)}
+marg.table = DP.data[,,1]+DP.data[,,2]
+oddsratio(marg.table,log=FALSE)
+```
+
+Response: The same odds for death penalty is 1.18 times more for defendants than for black defendants.
+Yes, it exhibits Simpson's paradox since the odds within race is different than the aggregated odds.
+
+```{r 2.36}
+## NO CODE
+```
+
+Response: Example would be as follows - 
+Alcohol and Heart diseases are dependent. However, when we control for smoking, these two will be independent. People who smoke might have a higher chance of drinking which could lead towards higher raters of heart disease.
+
+```{r 2.37(a)}
+## Murder victim for White Males (White_Male)
+White_Male <- 0.0049
+
+## Murder victim for Non-White Males (Non_White_Male)
+Non_White_Male <- 0.0263
+
+## Murder victim for White Females (White_Female)
+White_Female <- 0.0023
+
+## Murder victim for Non-White Females (Non_White_Female)
+Non_White_Female <- 0.0072
+
+## Conditional Odds Ratio between race given for Male
+(odds_ratio_male <- Non_White_Male*(1-Non_White_Male)/White_Male*(1-White_Male))
+
+## Conditional Odds Ratio between race given for Female
+(odds_ratio_Female <- Non_White_Female*(1-Non_White_Female)/White_Female*(1-White_Female))
+```
+
+Response: The conditional odds ratio are as follow
+Non-white vs White (given Male) = 5.200577
+Non-white vs White (given Female) = 3.100747
+
+We see there is bigger disparity in odds for males as compared to females. However, in both cases - Whites are comparatively higher.
+
+```{r 2.37(b)}
+## Marginal odds
+White_Proportion <- (White_Male + White_Female)/2
+Non_White_Proportion <- (Non_White_Male + Non_White_Female)/2
+
+## Marginal Odds for Non-White | white
+(Marginal_odds <- (Non_White_Proportion*(1-Non_White_Proportion))/(White_Proportion*(1-White_Proportion)))
+```
+
+Response: The marginal odds for Non-White | White is 4.591373
