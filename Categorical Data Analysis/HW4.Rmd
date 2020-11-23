@@ -1,0 +1,155 @@
+---
+title: "HW4"
+author: "Ritwik Bhriguvanshi"
+date: "10/14/2020"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r 4.12}
+# Q 4.12
+
+# a. Based on the parameter estimates, which group is most likely to have the “yes” response? Estimate the probability in that case.
+
+intercept = -3.5961
+coeff_def = -0.8678
+coeff_vic = 2.4044
+
+
+(exp(coeff_def))
+(exp(coeff_vic))
+
+#based on the parameters estimates, for a given defendant's race  the group outcome likely to to have a death penalty is when the victim is white with estimated odds of exp(2.4044)= 11 times the estimated odds when the victim is black. 
+
+#based on the parameters estimates, for a given victim's race the group outcome likely to to have a death penalty is when the defendant is white with estimated odds of exp(-0.8678)= 0.41 times less the estimated odds when the defendant is white. we can conclude that black defendants would receive a yes respose or death penalty 
+
+# estimated the probability = odds/(1+odds) when the victim is white
+
+a <- -3.5961+2.4044
+(exp(a)/(1+exp(a)))
+# 0.232955
+
+b <- 2.4044 + 0.6006*11
+(exp(b)/(1+exp(b)))
+# 0.999878
+
+
+# b. Interpret the parameter estimate for victim’s race.
+
+#The estimated odds to receive a death penalty given that its a white victim is exp(2.4044) = 11 times the estimated odds when the victim is a black victim
+
+#The estimated odds to receive a death penalty given that the defendant is white defendant is exp(−0.8678)=0.41 times less the estimated odds when the defendant is black
+
+
+# c. Using information shown, construct and interpret a 95% likelihood-ratio confidence interval for the conditional odds ratio between the death penalty verdict and victim’s race.
+
+# 95% likelihood confidence interval for conditional odds is (3.694333 41.161362)
+c(exp(1.3068),exp(3.7175))
+#the true estimated odd of a dealth penalty when the vicitim is white lie within the range of (3.694333 41.161362) times compared to when the victim is Black 
+
+
+# d. Test the effect of victim’s race, controlling for defendant’s race, using a Wald test or likelihood-ratio test. Interpret.
+
+#The effect of Victim's race by controlling the defendant race using a wald's test
+#H0: B =0
+#H1: B /=0
+
+#where B is the coeff of victim's race
+
+(Wald_statistics = (2.4044/0.6006))
+#[1] 4.00333 > 1.95
+
+# Reject Null, the effect of victim's race controlling for defendant's race is not independent. SOme effect of victim's race plays a role in the penalty outcome.
+
+```
+
+
+```{r q2}
+# Q.4.16
+
+Ex4.16 <- read.csv ("Ex4.16.csv", sep = ",", header = T)
+str(Ex4.16)
+
+### Change column "tf" into Categorical instead of Boolean 
+Ex4.16$tf <- as.character(Ex4.16$tf)
+### Use ifelse statement to Change into 'T' or 'F'
+Ex4.16$tf <- ifelse(Ex4.16$tf == "TRUE", "T", "F")
+## Check
+head(Ex4.16)
+
+## Build the Model
+model <- glm(cbind(Yes, No)~factor(tf) + factor(jp) + factor(EI) + factor(SN), data=Ex4.16, family = "binomial")
+summary(model)
+
+## For finding pie for ESTJ, this is the first row in the list, we will use this to make prediction
+predict(model, type="response")[1]
+
+## For finding pie for ENTJ, this is the first row in the list, we will use this to make prediction
+predict(model, type="response")[6]
+```
+
+Response:
+(a) The predictor variables were coded as factors.
+(b) ESTJ: 0.135186 
+(c) Highest possible set of coefficients, which makes personality type of ENTP as the highest. The estimated probability will be around 0.2271486 
+
+```{r q3}
+## Part(a)
+## Value of Pie (Use the intercept from the given Model Output)
+(pie <- exp(−2.8291)/(1+exp(−2.8291)))
+
+## Part(b)
+## Conditional odds Ratio
+(odds = exp(0.5805))
+
+## Part (C)
+## 95% likelihood-ratio confidence interval for the conditional odds ratio
+cbind(exp(0.1589), exp(1.008))
+
+## Part (d)
+## For E/I scale, the estimated conditional odds ratio b/w E/I and Response variable is:
+(conditional_odds = (1/(exp(0.5805))))
+(CI <- cbind((1/exp(1.008)), (1/exp(0.1589))))
+
+```
+
+Response (a) : Value of Pie is 0.05577177
+
+Response (b) : Given the T/F category, the estimated odds an extroverted person drinking frequently is about 1.786932 times the estimated odds an introverted person drinking frequently
+
+Response (c) : Given the T/F category, there is a 95% probability that the true odds ratio would likely be in the range [1.172221, 2.740115] for an extroverted person drinking frequently as compared to an introverted person drinking frequently.
+
+Response (d) : There is a 95% condfidence that the conditional odds ratio between E/I and the response will exist within the range [0.3649481, 0.8530817], given that 'I' is used instead of E for the first category of E/I scale.
+
+Response (e) : Let the parameter for E/I be denote by Beta. Let the null hypothesis be Beta = 0 and alternative hypothesis be Beta != 0. Looking at the Likelihood-ratio statistics value of 7.28 for E/I with 1 df and P-value of 0.007, we reject the null hypothesis since it is below the 5% threshold. Thus, we conclude that E/I has an effect on the response.
+
+```{r q4}
+#Q 4.30
+
+data<-read.csv("NCAA Final.csv", header=TRUE,stringsAsFactors = TRUE)
+#str(data)
+model=glm(Count~Athlete + Graduate, family = poisson,data=data)
+(summary(model))
+
+(confint(model))
+(exp(1.52940))
+(exp(1.71675))
+(exp(2.43042))
+
+```
+
+Our baseline/reference group for the model is Black females with no graduation
+The deviance is 180 with 3 degrees of freedom. 
+The chisquare value for the same is approximately close to zero, hence this model is not a good fit.
+
+Conditional odd ratio for each athlete group is given below.
+The estimated  odds of graduation given that the student is black male is exp(1.52904) = 4.62 times
+The estimated  odds of graduation given that the student is white female is exp(1.71675) = 5.66 times
+The estimated  odds of graduation given that the student is white male is exp(2.43042) = 11.36 times
+
+The Confidence Interval has been presented in the code above.
