@@ -1,0 +1,405 @@
+---
+title: "Infographics"
+author: "Ritwik Bhriguvanshi"
+date: "11/9/2020"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r cars}
+data <- read.csv("adult.csv", header = T, na.strings = c("", "NA", "?", "-"))
+dim(data)
+head(data)
+```
+
+Step1: Explore the data, change the type, analyze tables
+
+```{r basicexploration}
+## Perform Exploratory data Analysis
+str(data)
+
+## Drop Two Columns "fnlwgt" and "educational.num
+drop <- c("fnlwgt","educational.num")
+data = data[,!(names(data) %in% drop)]
+
+## Missing Values for Each Column
+colSums(is.na(data))
+
+## Change Type of Variables
+data$workclass <- as.character(as.factor(data$workclass))
+data$education <- as.character(as.factor(data$education))
+data$marital.status <- as.character(as.factor(data$marital.status))
+data$occupation <- as.character(as.factor(data$occupation))
+data$relationship <- as.character(as.factor(data$relationship))
+data$race <- as.character(as.factor(data$race))
+data$gender <- as.character(as.factor(data$gender))
+data$native.country <- as.character(as.factor(data$native.country))
+data$income  <- as.character(as.factor(data$income))
+
+## Change NA values to Not Known
+data$workclass[is.na(data$workclass)] <- "Not Known"
+data$occupation[is.na(data$occupation)] <- "Not Known"
+data$native.country[is.na(data$native.country)] <- "Not Known"
+
+## Make Table for Categorical Data
+## Two of these tables have been used in the Poster for Analysis
+
+table(data$workclass) # Missing values exist
+table(data$education)
+table(data$marital.status)
+table(data$occupation) # Missing values exist
+table(data$relationship)
+table(data$race)
+table(data$gender)     
+table(data$native.country) # Missing values exist
+table(data$income)
+
+```
+
+Step2: Boxplot Analysis for relevant numerical variables
+
+```{r boxplot}
+## Visualize Income with Categorical Data
+par(mfrow=c(1,2))
+boxplot(age ~ income,data = data, ylab = "age", col = "cyan3")
+boxplot(hours.per.week ~ income,data = data, ylab = "Working Hours per Week",xlab = "Income Level", col = "darkkhaki")
+boxplot(capital.gain ~ income,data = data, ylab = "Capital Gain", col = "lightcoral")
+boxplot(capital.loss ~ income,data = data, ylab = "Capital Loss", col = "lightgreen")
+```
+
+Step3: In-Depth Analysis for "Age" variable
+
+```{r ageanalysis}
+library(ggplot2)
+# See Distribution of Age
+p <- ggplot(data, aes(x=age)) + geom_histogram(binwidth=1,color="black", fill="lightblue")
+## Add mean Line for Age
+p + geom_vline(aes(xintercept=mean(age)),
+            color="black", linetype="dashed", size=1)
+
+# grouped by number of gears (indicated by color)
+qplot(age, data=data, geom="density", fill=income, alpha=I(.65),
+   main="Distribution of Age", xlab="Age",
+   ylab="Density")
+
+## Make 5 levels from the Age group to make a new column
+data$agegroups <- cut(data$age,b=5)
+
+## Distribution of Age Group in the five cuts made
+table(data$agegroups)
+data$agegroups <- as.numeric(as.factor(data$agegroups))
+
+# boxplot(agegroups ~ income,data = data, ylab = "age", col = "yellow")
+
+data$agegroups[data$agegroups == 1] <- "16.9,31.6"
+data$agegroups[data$agegroups == 2] <- "31.6,46.2"
+data$agegroups[data$agegroups == 3] <- "46.2,60.8"
+data$agegroups[data$agegroups == 4] <- "60.8,75.4"
+data$agegroups[data$agegroups == 5] <- "75.4,90.1"
+
+## Distribution of Age Group in the five cuts made
+table(data$agegroups)
+
+# grouped by number of gears (indicated by color)
+qplot(agegroups, data=data, geom="density", fill=income, alpha=I(.5),
+   main="Distribution of Age", xlab="Age",
+   ylab="Density")
+
+```
+
+Step4: Analyze each dimension in the dataset by group it by a variable & income
+
+```{r dplyr}
+colnames(data)
+library(dplyr)
+## Workclass
+workclass <- data %>%
+group_by(workclass, income) %>%
+summarize("Count" = n(), "Mean of Age" = round(mean(age),2), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(workclass)
+
+# Education
+education <- data %>%
+group_by(education, income) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(education)
+
+# Martial Status
+martial <- data %>%
+group_by(marital.status, income) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(martial)
+
+## Occupation
+occupation <- data %>%
+group_by(occupation, income) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(occupation)
+
+## Relationship
+relationship <- data %>%
+group_by(relationship, income) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(relationship)
+
+## Race
+race <- data %>%
+group_by(race, income) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(race)
+
+## Gender
+gender <- data %>%
+group_by(gender, income) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(gender)
+
+## Native Country
+country <- data %>%
+group_by(native.country) %>%
+summarize("Count" = n(), "Percentage" = n()/nrow(data)*100) %>%
+arrange(desc(Count))
+print(country)
+
+```
+
+Step5: Analyze each variable when Income is greater than 50K
+
+```{r visualmorethan50}
+above50k <- data %>%
+  filter(income == ">50K") 
+
+## Age Graph
+age_above50k <- ggplot(above50k , aes(x=age)) + geom_histogram(binwidth=1,color="black", fill="lightblue")                      + labs(title="Distribution of Age",x="Age", y = "Frequency")
+print(age_above50k)
+
+## Age Stat
+age_above_50k_stat <- above50k %>%
+                      summarise("Average Age" = mean(age), "Median Age" = median(age))
+print(age_above_50k_stat)
+
+## Workclass Table
+workclass_above50k <- above50k %>%
+                group_by(workclass) %>%
+                summarise("Count" = n(), Percentage = n()/nrow(above50k)*100) %>%
+                arrange(desc(Count)) %>%
+                top_n(6)
+print(workclass_above50k)
+
+## Education Distribution
+edu_above50k <- above50k %>%
+              group_by(education) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Count)) %>%
+              top_n(5)
+print(edu_above50k)
+
+## Marital Status
+marital_above50k <- above50k %>%
+              group_by(marital.status) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Percentage))
+print(marital_above50k)
+
+## Occupation
+occupation_above50k <- above50k %>%
+              group_by(occupation) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Percentage)) %>%
+              top_n(6)
+print(occupation_above50k)
+
+## Relationship
+relationship_above50k <- above50k %>%
+              group_by(relationship) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Percentage))
+print(relationship_above50k)
+
+## Race
+race_above50k <- above50k %>%
+              group_by(race) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Percentage))
+print(race_above50k)
+
+## Gender
+gender_above50k <- above50k %>%
+              group_by(gender) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Percentage))
+print(gender_above50k)
+
+## Capital Gain
+capitalgain_above50k <- above50k %>%
+              summarise("Mean Capital Gain" = mean(capital.gain), "Minimum Capital Gain" = 
+                           min(capital.gain), "Maximum Capital Gain" = max(capital.gain))
+print(capitalgain_above50k)
+
+## Capital Loss
+capitalloss_above50k <- above50k %>%
+              summarise("Mean Capital Loss" = mean(capital.loss), "Minimum Capital Loss" = 
+                           min(capital.loss), "Maximum Capital Loss" = max(capital.loss))
+print(capitalloss_above50k)
+
+## Hours per week
+hours_above50k <- above50k %>%
+              summarise("Mean Hours per week"= mean(hours.per.week),"Median Hours per week"= median(hours.per.week)) %>%
+              arrange(desc("Mean Hours per week"))
+print(hours_above50k)
+
+## Native Country
+country_above50k <- above50k %>%
+              group_by(native.country) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(above50k)*100) %>%
+              arrange(desc(Percentage)) %>%
+              top_n(5)
+print(country_above50k)
+```
+
+Step6: Analyze each variable when income is less than 50K
+
+```{r visuallessthan50}
+below50k <- data %>%
+  filter(income == "<=50K")  
+
+## Graph
+age_below_50k <- ggplot(below50k , aes(x=age)) + geom_histogram(binwidth=1,color="black", fill="lightblue") + labs(title="Distribution of Age",x="Age", y = "Frequency")
+print(age_below_50k)
+
+## Age Stat
+age_below_50k_stat <- data %>%
+                       summarise("Average Age" = mean(age), "Median Age" = median(age))
+print(age_below_50k_stat)
+
+## Workclass Table
+workclass_below50k <- below50k %>%
+                group_by(workclass) %>%
+                summarise("Count" = n(), Percentage = n()/nrow(below50k)*100) %>%
+                arrange(desc(Count)) %>%
+                top_n(6)
+print(workclass_below50k)
+
+## Education Distribution
+edu_below50k <- below50k %>%
+              group_by(education) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Count)) %>%
+              top_n(6)
+print(edu_below50k)
+
+## Marital Status
+marital_below50k <- below50k %>%
+              group_by(marital.status) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Percentage))
+print(marital_below50k)
+
+## Occupation
+occupation_below50k <- below50k %>%
+              group_by(occupation) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Percentage)) %>%
+              top_n(6)
+print(occupation_below50k)
+
+## Relationship
+relationship_below50k <- below50k %>%
+              group_by(relationship) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Percentage))
+print(relationship_below50k)
+
+## Race
+race_below50k <- below50k %>%
+              group_by(race) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Percentage))
+print(race_below50k)
+
+## Gender
+gender_below50k <- below50k %>%
+              group_by(gender) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Percentage))
+print(gender_below50k)
+
+## Capital Gain
+capitalgain_below50k <- below50k %>%
+              summarise("Mean Capital Gain" = mean(capital.gain), "Minimum Capital Gain" = 
+                           min(capital.gain), "Maximum Capital Gain" = max(capital.gain))
+print(capitalgain_below50k)
+
+## Capital Loss
+capitalloss_below50k <- below50k %>%
+              summarise("Mean Capital Loss" = mean(capital.loss), "Minimum Capital Loss" = 
+                           min(capital.loss), "Maximum Capital Loss" = max(capital.loss))
+print(capitalloss_below50k)
+
+## Hours per week
+hours_below50k <- below50k %>%
+              summarise("Mean Hours per week"= mean(hours.per.week),"Median Hours per week"= median(hours.per.week)) %>%
+              arrange(desc("Mean Hours per week"))
+print(hours_below50k)
+
+## Native Country
+country_below50k <- below50k %>%
+              group_by(native.country) %>%
+              summarise("Count"= n(), "Percentage" = n()/nrow(below50k)*100) %>%
+              arrange(desc(Percentage)) %>%
+              top_n(6)
+print(country_below50k)
+```
+
+Step7: Some other variable Interactions and Visualizations
+
+```{r plot}
+## Some Interesting Interactions between variables 
+par(mfrow=c(1,2))
+boxplot (age ~ gender*income,data = data, ylab = "age", col = "darkkhaki", cex.axis=.55)
+boxplot (age ~ race*income,data = data, ylab = "age", col = "green", cex.axis = .4)
+
+##################################   Pie- Chart   ##########################################
+total_gender <- table(data$gender)
+pie(total_gender, labels=as.character(rownames(total_gender)), col=c("lightblue","lightgreen", border="black", clockwise=TRUE))
+print(total_gender)
+
+total_race <- table(data$race)
+pie(total_race, labels=as.character(rownames(total_race)), col=c("lightblue","lightgreen", "pink","orange","grey", border="black", clockwise=TRUE))
+print(total_race)
+
+##################################   Plotly    ##########################################
+library(plotly)
+## Occupation for Below 50K
+fig <- plot_ly(
+  type = "funnelarea",
+  text = occupation_below50k$occupation,
+  values = occupation_below50k$Percentage)
+fig
+
+## Occupation for Above 50K
+fig1 <- plot_ly(
+  type = "funnelarea",
+  text = occupation_above50k$occupation,
+  values = occupation_above50k$Percentage)
+fig1
+
+```
+
+
+
+
+
