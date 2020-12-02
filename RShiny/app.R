@@ -249,11 +249,5 @@ server <- function(input, output, session) {
 # Create Shiny app ----
 shinyApp(ui, server)
 
-####################################
-#rsconnect::setAccountInfo(name='bhriguvanshi',
-#                          token='39E8A91AE16A2599CC2FA11AB388896F',
-#                          secret='KRjsdw9wCcaE5D2LO9Lv0tzNvQ15ICLKXz/H4Evn')
-
-
 
 
